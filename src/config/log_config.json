@@ -5,5 +5,5 @@
         "RSPEngine"
     ],
     "destination": "FILE",
-    "max_delay": 60000
+    "max_delay": 120000
 }

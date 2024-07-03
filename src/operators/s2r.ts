@@ -169,11 +169,8 @@ export class CSPARQLWindow {
 
         for (let window of to_evict) {
             this.active_windows.delete(window);
-            this.emitter.emit('RStream', this.active_windows.get(window));
             console.debug(`Watermark evicting window ${window.getDefinition()}`)
         }
-
-
     }
 
     emit_on_trigger(t_e: number) {
