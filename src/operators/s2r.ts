@@ -143,7 +143,7 @@ export class CSPARQLWindow {
                 if (temp_window) {
                     temp_window.add(e, t_e);
                 }
-            } else if (t_e > w.close) {
+            } else if (t_e >= w.close) {
                 toEvict.add(w);
             }
         }
@@ -174,6 +174,34 @@ export class CSPARQLWindow {
     }
 
     emit_on_trigger(t_e: number) {
+
+        if (this.late_buffer.size === 0) {
+            let windows_to_trigger: WindowInstance[] = [];
+
+            this.active_windows.forEach((value: QuadContainer, window: WindowInstance) => {
+                if (this.compute_report(window, value, t_e)) {
+                    windows_to_trigger.push(window);
+                }
+            });
+
+
+            if (windows_to_trigger.length > 0) {
+                if (this.tick == Tick.TimeDriven){
+                    if (t_e > this.time){
+                        this.time = t_e;
+                        windows_to_trigger.forEach((window: WindowInstance) => {
+                            if (!window.has_triggered || this.report == ReportStrategy.OnContentChange) {
+                                window.has_triggered = true;
+                                this.emitter.emit('RStream', this.active_windows.get(window));
+                                console.log(`Window ${window.getDefinition()} triggers. Content: " + ${this.active_windows.get(window)}`);
+                            }
+                        });
+                    }
+                }
+            }
+
+        }
+
         let max_window = null;
         let max_time = 0;
         this.active_windows.forEach((value: QuadContainer, window: WindowInstance) => {
@@ -196,7 +224,7 @@ export class CSPARQLWindow {
                             max_window.has_triggered = true;
                             this.emitter.emit('RStream', this.active_windows.get(max_window));
                             // @ts-ignore
-                            console.log("Window [" + max_window.open + "," + max_window.close + ") triggers. Content: " + this.active_windows.get(max_window));
+                            console.log(`Window ${max_window.getDefinition()} triggers. Content: " + ${this.active_windows.get(max_window)}`);
                         }
                     }
                 }
@@ -229,18 +257,16 @@ export class CSPARQLWindow {
     }
 
     process_late_elements() {
+        let to_evict = new Set<WindowInstance>();
+
         this.late_buffer.forEach((elements: Set<Quad>, timestamp: number) => {
             elements.forEach((element: Quad) => {
-                let to_evict = new Set<WindowInstance>();
                 this.process_event(element, timestamp, to_evict);
-
-                for (let w of to_evict) {
-                    console.debug("Evicting [" + w.open + "," + w.close + ")");
-                    this.active_windows.delete(w);
-                }
             });
         });
+
         this.late_buffer.clear();
+        this.emit_on_trigger(this.current_watermark);
     }
 
     set_current_time(t: number) {
