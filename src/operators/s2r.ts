@@ -17,9 +17,11 @@ export enum Tick {
 export class WindowInstance {
     open: number;
     close: number;
+    has_triggered: boolean;
     constructor(open: number, close: number) {
         this.open = open;
         this.close = close;
+        this.has_triggered = false;
     }
 
     getDefinition() {
@@ -68,6 +70,7 @@ export class CSPARQLWindow {
     emitter: EventEmitter;
     interval_id: NodeJS.Timeout;
     name: string;
+    private current_watermark: number; // To track the current watermark of the window
     private late_buffer: Map<number, Set<Quad>>; // Buffer for out-of-order late elements
     private max_delay: number; // The maximum delay allowed for a observation to be considered in the window
     constructor(name: string, width: number, slide: number, report: ReportStrategy, tick: Tick, start_time: number, max_delay: number) {
@@ -77,6 +80,7 @@ export class CSPARQLWindow {
         this.report = report;
         this.tick = tick;
         this.time = start_time;
+        this.current_watermark = start_time;
         this.t0 = start_time;
         this.active_windows = new Map<WindowInstance, QuadContainer>();
         this.emitter = new EventEmitter();
@@ -145,8 +149,32 @@ export class CSPARQLWindow {
         }
 
         this.emit_on_trigger(t_e);
+        this.update_watermark(t_e);
     }
 
+    update_watermark(new_time: number) {
+        if (new_time > this.current_watermark) {
+            this.current_watermark = new_time;
+            this.check_watermark();
+        }
+    }
+
+    check_watermark() {
+        let to_evict = new Set<WindowInstance>();
+        this.active_windows.forEach((value: QuadContainer, window: WindowInstance) => {
+            if (window.close <= this.current_watermark - this.max_delay) {
+                to_evict.add(window);
+            }
+        });
+
+        for (let window of to_evict) {
+            this.active_windows.delete(window);
+            this.emitter.emit('RStream', this.active_windows.get(window));
+            console.debug(`Watermark evicting window ${window.getDefinition()}`)
+        }
+
+
+    }
 
     emit_on_trigger(t_e: number) {
         let max_window = null;
@@ -164,9 +192,16 @@ export class CSPARQLWindow {
             if (this.tick == Tick.TimeDriven) {
                 if (t_e > this.time) {
                     this.time = t_e;
-                    this.emitter.emit('RStream', this.active_windows.get(max_window));
-                    // @ts-ignore
-                    console.log("Window [" + max_window.open + "," + max_window.close + ") triggers. Content: " + this.active_windows.get(max_window));
+                    if (max_window) {
+                        // @ts-ignore
+                        if (!max_window.has_triggered || this.report == ReportStrategy.OnContentChange) {
+                            // @ts-ignore
+                            max_window.has_triggered = true;
+                            this.emitter.emit('RStream', this.active_windows.get(max_window));
+                            // @ts-ignore
+                            console.log("Window [" + max_window.open + "," + max_window.close + ") triggers. Content: " + this.active_windows.get(max_window));
+                        }
+                    }
                 }
             }
         }
@@ -175,6 +210,8 @@ export class CSPARQLWindow {
     compute_report(w: WindowInstance, content: QuadContainer, timestamp: number) {
         if (this.report == ReportStrategy.OnWindowClose) {
             return w.close < timestamp;
+        } else if (this.report == ReportStrategy.OnContentChange) {
+            return true;
         }
         return false;
 
