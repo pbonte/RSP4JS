@@ -8,7 +8,7 @@ import { Quad } from 'n3';
 import { R2ROperator } from "./r2r";
 
 test('test_query_engine', async () => {
-    let r2r = new R2ROperator(`SELECT * WHERE { ?s ?p ?o }`);
+    const r2r = new R2ROperator(`SELECT * WHERE { ?s ?p ?o }`);
     const quad1 = quad(
         namedNode('https://rsp.js/test_subject_0'),
         namedNode('http://rsp.js/test_property'),
@@ -21,12 +21,12 @@ test('test_query_engine', async () => {
         namedNode('http://rsp.js/test_object'),
         defaultGraph(),
     );
-    let quadSet = new Set<Quad>();
+    const quadSet = new Set<Quad>();
     quadSet.add(quad1);
     quadSet.add(quad2);
-    let container = new QuadContainer(quadSet, 0);
+    const container = new QuadContainer(quadSet, 0);
     const bindingsStream = await r2r.execute(container);
-    let resuults = new Array<string>();
+    const resuults = new Array<string>();
     // @ts-ignore
     bindingsStream.on('data', (binding) => {
         console.log(binding.toString()); // Quick way to print bindings for testing
@@ -41,7 +41,7 @@ test('test_query_engine', async () => {
 });
 
 test('test_query_engine_with_extension_functions', async () => {
-    let r2r = new R2ROperator(`
+    const r2r = new R2ROperator(`
         PREFIX extension: <http://extension.org/functions#>
         SELECT (extension:sqrt(?o) as ?sqrt) (extension:pow(?o,2) as ?pow) WHERE { ?s ?p ?o }`);
     const quad1 = quad(
@@ -56,12 +56,12 @@ test('test_query_engine_with_extension_functions', async () => {
         literal('9'),
         defaultGraph(),
     );
-    let quadSet = new Set<Quad>();
+    const quadSet = new Set<Quad>();
     quadSet.add(quad1);
     quadSet.add(quad2);
-    let container = new QuadContainer(quadSet, 0);
+    const container = new QuadContainer(quadSet, 0);
     const bindingsStream = await r2r.execute(container);
-    let results = new Array<string>();
+    const results = new Array<string>();
     // @ts-ignore
     bindingsStream.on('data', (binding) => {
         results.push(binding);

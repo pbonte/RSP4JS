@@ -9,9 +9,17 @@
     "start": "node dist/index.js",
     "test": "jest --coverage",
     "test:watch": "jest --watch",
+    "docs": "esdoc",
+    "lint:ts": "eslint . --ext ts --report-unused-disable-directives --max-warnings 0",
+    "lint:ts:fix": "eslint . --ext ts --report-unused-disable-directives --max-warnings 0 --fix",
     "release": "npm run build && npm publish --access public"
   },
-  "keywords": ["RSP", "RDF Stream Processing", "Semantic Web", "RDF"],
+  "keywords": [
+    "RSP",
+    "RDF Stream Processing",
+    "Semantic Web",
+    "RDF"
+  ],
   "author": "Pieter Bonte",
   "license": "MIT",
   "devDependencies": {
@@ -23,6 +31,12 @@
   },
   "dependencies": {
     "@comunica/query-sparql": "^2.5.2",
-    "n3": "^1.16.3"
+    "@typescript-eslint/parser": "^7.15.0",
+    "esdoc": "^1.1.0",
+    "eslint": "^8.57.0",
+    "eslint-plugin-jest": "^28.6.0",
+    "eslint-plugin-jsdoc": "^48.5.0",
+    "n3": "^1.16.3",
+    "tslog": "^4.9.3"
   }
 }

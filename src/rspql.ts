@@ -1,7 +1,13 @@
+/**
+ *
+ */
 export class ParsedQuery {
     sparql: string;
     r2s: R2S;
     s2r: Array<WindowDefinition>;
+    /**
+     *
+     */
     constructor() {
         this.sparql = "Select * WHERE{?s ?p ?o}";
         // @ts-ignore
@@ -9,12 +15,24 @@ export class ParsedQuery {
         this.s2r = new Array<WindowDefinition>();
 
     }
+    /**
+     *
+     * @param sparql
+     */
     set_sparql(sparql: string) {
         this.sparql = sparql;
     }
+    /**
+     *
+     * @param r2s
+     */
     set_r2s(r2s: R2S) {
         this.r2s = r2s;
     }
+    /**
+     *
+     * @param s2r
+     */
     add_s2r(s2r: WindowDefinition) {
         this.s2r.push(s2r);
     }
@@ -29,14 +47,21 @@ type R2S = {
     operator: "RStream" | "IStream" | "DStream",
     name: string
 }
+/**
+ *
+ */
 export class RSPQLParser {
+    /**
+     *
+     * @param query
+     */
     parse(query: string): ParsedQuery {
-        let parsed = new ParsedQuery();
-        let split = query.split(/\r?\n/);
-        let sparqlLines = new Array<string>();
-        let prefixMapper = new Map<string, string>();
+        const parsed = new ParsedQuery();
+        const split = query.split(/\r?\n/);
+        const sparqlLines = new Array<string>();
+        const prefixMapper = new Map<string, string>();
         split.forEach((line) => {
-            let trimmed_line = line.trim();
+            const trimmed_line = line.trim();
             //R2S
             if (trimmed_line.startsWith("REGISTER")) {
                 const regexp = /REGISTER +([^ ]+) +<([^>]+)> AS/g;
@@ -76,12 +101,17 @@ export class RSPQLParser {
         parsed.sparql = sparqlLines.join("\n");
         return parsed;
     }
+    /**
+     *
+     * @param prefixedIri
+     * @param mapper
+     */
     unwrap(prefixedIri: string, mapper: Map<string, string>) {
         if (prefixedIri.trim().startsWith("<")) {
             return prefixedIri.trim().slice(1, -1);
         }
-        let split = prefixedIri.trim().split(":");
-        let iri = split[0];
+        const split = prefixedIri.trim().split(":");
+        const iri = split[0];
         if (mapper.has(iri)) {
             return mapper.get(iri) + split[1];
         } else {

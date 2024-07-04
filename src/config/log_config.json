@@ -4,6 +4,5 @@
         "RDFStream",
         "RSPEngine"
     ],
-    "destination": "FILE",
-    "max_delay": 60000
+    "destination": "FILE"
 }

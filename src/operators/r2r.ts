@@ -4,23 +4,38 @@ const N3 = require('n3');
 const DF = new DataFactory();
 // @ts-ignore
 import { Literal, Quad } from 'n3';
+/**
+ *
+ */
 export class R2ROperator {
     query: string;
     staticData: Set<Quad>;
+    /**
+     *
+     * @param query
+     */
     constructor(query: string) {
         this.query = query;
         this.staticData = new Set<Quad>();
     }
+    /**
+     *
+     * @param quad
+     */
     addStaticData(quad: Quad) {
         this.staticData.add(quad);
     }
+    /**
+     *
+     * @param container
+     */
     async execute(container: QuadContainer) {
         const store = new N3.Store();
-        for (let elem of container.elements) {
+        for (const elem of container.elements) {
             store.addQuad(elem);
 
         }
-        for (let elem of this.staticData) {
+        for (const elem of this.staticData) {
             store.addQuad(elem);
         }
         const QueryEngine = require('@comunica/query-sparql').QueryEngine;
