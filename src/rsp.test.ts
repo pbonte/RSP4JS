@@ -11,7 +11,6 @@ const { namedNode, defaultGraph, quad } = DataFactory;
  */
 function generate_data(num_events: number, rdfStreams: RDFStream[]) {
     for (let i = 0; i < num_events; i++) {
-
         rdfStreams.forEach((stream) => {
             const stream_element = quad(
                 namedNode('https://rsp.js/test_subject_' + i),
@@ -44,7 +43,7 @@ test('rsp_consumer_test', async () => {
     REGISTER RStream <output> AS
     SELECT *
     FROM NAMED WINDOW :w1 ON STREAM :stream1 [RANGE 10 STEP 2]
-    WHERE{
+    WHERE {
         WINDOW :w1 { ?s ?p ?o}
     }`;
 
@@ -55,8 +54,10 @@ test('rsp_consumer_test', async () => {
     // @ts-ignore
     emitter.on('RStream', (object) => {
         console.log("received results");
+        
         results.push(object.bindings.toString());
     });
+
     if (stream) {
         generate_data(10, [stream]);
     }
@@ -87,6 +88,9 @@ test('rsp_multiple_same_window_test', async () => {
 
     const emitter = rspEngine.register();
     const results = new Array<string>();
+
+    console.log(rspEngine.get_all_streams());
+    
     // @ts-ignore
     emitter.on('RStream', (object) => {
         console.log("received results");
@@ -245,4 +249,19 @@ test('test_out_of_order_event_processing', async () => {
     }
     // expect(results.length).toBe(2 + 4 + 6 + 8 + 2 + 4 + 6 + 8);
     console.log(results.length);
+});
+
+test('test setting the max delay for out of order events', async () => {
+    const query = `PREFIX : <https://rsp.js/>
+    REGISTER RStream <output> AS
+    SELECT *
+    FROM NAMED WINDOW :w1 ON STREAM :stream1 [RANGE 10 STEP 2]
+    WHERE{
+        WINDOW :w1 { ?s ?p ?o}
+    }`;
+
+    const rsp_engine = new RSPEngine(query);
+    expect(rsp_engine.max_delay).toBe(0);
+    let rsp_engine_2 = new RSPEngine(query, 1000);
+    expect(rsp_engine_2.max_delay).toBe(1000);
 });

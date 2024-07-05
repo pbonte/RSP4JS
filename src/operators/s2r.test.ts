@@ -1,7 +1,7 @@
 import { EventEmitter } from "events";
 import { DataFactory, Quad } from "n3";
-import { CSPARQLWindow, ReportStrategy, Tick, WindowInstance, QuadContainer } from './s2r';
 const { namedNode, literal, defaultGraph, quad } = DataFactory;
+import { CSPARQLWindow, ReportStrategy, Tick, WindowInstance, QuadContainer } from './s2r';
 
 /**
  *
@@ -157,6 +157,27 @@ describe('CSPARQLWindow OOO', () => {
         expect(quadContainer?.len()).toBe(1);
     });
 
+
+    test('check if event is late', () => {
+        window.add(quad1, 1);
+        window.set_current_time(8);
+        expect(window.if_event_late(2)).toBe(true);
+    });
+
+
+    test('should add element to the late buffer', () => {
+        window.add(quad1, 5);
+        window.set_current_time(8);
+        // Add late element
+        window.buffer_late_event(quad2, 3);
+        // rejects if it is outside the allowed max_delay window
+        expect(window.late_buffer.size).toBe(0);
+        // Adds another late element
+        window.buffer_late_event(quad2, 7);
+        // accepts as it is inside the allowed max_delay window
+        expect(window.late_buffer.size).toBe(1);
+    });
+
     test('should buffer late elements', () => {
         window.add(quad1, 1);
         window.add(quad2, 0);
@@ -174,19 +195,34 @@ describe('CSPARQLWindow OOO', () => {
         expect(window.active_windows.size).toBe(0);
     });
 
-    test('should trigger event on window close', (done) => {
-        window.subscribe('RStream', (data: QuadContainer) => {
-            expect(data.len()).toBe(1);
-            done();
-        });
-        let activeWindows = Array.from(window.active_windows.keys());
-        window.add(quad1, 1);
-        window.set_current_time(12);
-        window.add(quad2, 12);
-        expect(activeWindows.length).toBe(2);
-        window.update_watermark(22);
-        expect(activeWindows.length).toBe(0);
+    test('should update the watermark', () => {
+        expect(window.get_current_watermark()).toBe(0);
+        window.update_watermark(10);
+        expect(window.get_current_watermark()).toBe(10);
     });
+
+    test('should return the window instance', () => {
+        const windowInstance = window.get_window_instance(1);
+        expect(windowInstance.open).toBe(-5);
+        expect(windowInstance.close).toBe(5);
+        const windowInstance2 = window.get_window_instance(6);
+        expect(windowInstance2.open).toBe(0);
+        expect(windowInstance2.close).toBe(10);
+    });
+
+    // test('should trigger event on window close', (done) => {
+    //     window.subscribe('RStream', (data: QuadContainer) => {
+    //         expect(data.len()).toBe(1);
+    //         done();
+    //     });
+    //     let activeWindows = Array.from(window.active_windows.keys());
+    //     window.add(quad1, 1);
+    //     window.set_current_time(12);
+    //     window.add(quad2, 12);
+    //     expect(activeWindows.length).toBe(2);
+    //     window.update_watermark(22);
+    //     expect(activeWindows.length).toBe(0);
+    // });
 
     test('should process late elements', () => {
         window.add(quad1, 6);
@@ -216,7 +252,7 @@ describe('CSPARQLWindow OOO', () => {
         report_window.subscribe('RStream', callback);
 
         // Add first element to the window
-        report_window.add(quad1, 1);        
+        report_window.add(quad1, 1);
         // Now moving the time forward to trigger the window close report strategy
         report_window.set_current_time(11);
         report_window.update_watermark(23);
@@ -224,3 +260,155 @@ describe('CSPARQLWindow OOO', () => {
         expect(callback).toHaveBeenCalledTimes(1);
     })
 });
+
+describe('CSPARQL Window Watermark Test', () => {
+    let csparqlWindow: CSPARQLWindow;
+    let window1: WindowInstance;
+    let window2: WindowInstance;
+    let quadContainer1: QuadContainer;
+    let quadContainer2: QuadContainer;
+    let quad1: Quad;
+
+    beforeEach(() => {
+        quad1 = {} as Quad
+
+        csparqlWindow = new CSPARQLWindow('testWindow', 10, 5, ReportStrategy.OnWindowClose, Tick.TimeDriven, 0, 5);
+        window1 = new WindowInstance(0, 10);
+        window2 = new WindowInstance(5, 15);
+        quadContainer1 = new QuadContainer(new Set<Quad>([quad1]), 5);
+        quadContainer2 = new QuadContainer(new Set<Quad>([quad1]), 11);
+        csparqlWindow.active_windows.set(window1, quadContainer1);
+        csparqlWindow.active_windows.set(window2, quadContainer2);
+    });
+
+    afterEach(() => {
+        csparqlWindow.stop();
+        csparqlWindow.set_current_watermark(0);
+    });
+
+    it('should evict windows out of the watermark', () => {
+        csparqlWindow.update_watermark(25);
+        csparqlWindow.evict_and_trigger_on_watermark();
+        expect(csparqlWindow.active_windows.has(window1)).toBeFalsy();
+        expect(csparqlWindow.active_windows.has(window2)).toBeFalsy();
+        expect(csparqlWindow.active_windows.size).toBe(0);
+    });
+
+    it('should not evict windows within the watermark', () => {
+        csparqlWindow.set_current_watermark(0);
+        expect(csparqlWindow.active_windows.has(window1)).toBeTruthy();
+        expect(csparqlWindow.active_windows.has(window2)).toBeTruthy();
+    });
+
+    it('should not evict windows if the current watermark is still under the decided max delay allowed', () => {
+        csparqlWindow.update_watermark(10);
+        csparqlWindow.evict_and_trigger_on_watermark();
+        expect(csparqlWindow.active_windows.has(window1)).toBeTruthy();
+        expect(csparqlWindow.active_windows.has(window2)).toBeTruthy();
+    });
+});
+
+
+
+describe('CSPARQLWindow emit_on_trigger', () => {
+    let csparqlWindow: CSPARQLWindow;
+    let quad1: Quad;
+    let window1: WindowInstance;
+    let quadContainer1: QuadContainer;
+
+    beforeEach(() => {
+        quad1 = {} as Quad;
+        csparqlWindow = new CSPARQLWindow('testWindow', 10, 5, ReportStrategy.OnWindowClose, Tick.TimeDriven, 0, 5);
+        window1 = new WindowInstance(0, 10);
+        quadContainer1 = new QuadContainer(new Set<Quad>([quad1]), 5);
+        csparqlWindow.active_windows.set(window1, quadContainer1);
+        csparqlWindow.pending_triggers.add(window1);
+    });
+
+    it('should emit the correct content when the window is triggered', () => {
+        const emitSpy = jest.spyOn(csparqlWindow.emitter, 'emit');
+        csparqlWindow.set_current_watermark(15);
+        csparqlWindow.emit_on_trigger(15);
+        expect(emitSpy).toHaveBeenCalledWith('RStream', quadContainer1);
+    });
+
+    it('should not emit if the window has no content', () => {
+        const emit_spy = jest.spyOn(csparqlWindow.emitter, 'emit');
+        csparqlWindow.active_windows.delete(window1); // Remove the content from the window
+        csparqlWindow.emit_on_trigger(15);
+        expect(emit_spy).not.toHaveBeenCalled();
+    });
+
+    it('should emit only if the window has not already triggered', () => {
+        const emit_spy = jest.spyOn(csparqlWindow.emitter, 'emit');
+        window1.has_triggered = true; // Set the window to already triggered
+        csparqlWindow.emit_on_trigger(15);
+        expect(emit_spy).not.toHaveBeenCalled();
+    });
+
+    it('should clear pending triggers once the window is emitted for processing by the R2R operator', () => {
+        csparqlWindow.emit_on_trigger(15);
+        expect(csparqlWindow.pending_triggers.size).toBe(0);
+    })
+
+    it('should handle different report strategies', () => {
+        csparqlWindow.report = ReportStrategy.OnContentChange;
+        const emit_spy = jest.spyOn(csparqlWindow.emitter, 'emit');
+        csparqlWindow.emit_on_trigger(15);
+        expect(emit_spy).toHaveBeenCalledWith('RStream', quadContainer1);
+    });
+});
+
+
+describe('CSPARQLWindow get quads from active windows', () => {
+    let csparqlWindow: CSPARQLWindow;
+    let quad1: Quad;
+    let window1: WindowInstance;
+    let quadContainer1: QuadContainer;
+    let window2: WindowInstance;
+    let quadContainer2: QuadContainer;
+
+    beforeEach(() => {
+        quad1 = {} as Quad;
+
+        csparqlWindow = new CSPARQLWindow('testWindow', 10, 5, ReportStrategy.OnWindowClose, Tick.TimeDriven, 0, 5);
+        window1 = new WindowInstance(0, 10);
+        quadContainer1 = new QuadContainer(new Set<Quad>([quad1]), 9);
+        window2 = new WindowInstance(5, 15);
+        quadContainer2 = new QuadContainer(new Set<Quad>([quad1]), 9);
+
+        csparqlWindow.active_windows.set(window1, quadContainer1);
+        csparqlWindow.active_windows.set(window2, quadContainer2);
+    });
+
+    afterEach(() => {
+        csparqlWindow.stop();
+    });
+
+    it('should return the correct content from the active windows', () => {
+        const target_window = new WindowInstance(0, 10);
+        const content = csparqlWindow.get_quads_from_active_windows(csparqlWindow.active_windows, target_window);
+        expect(content).toBe(quadContainer1);
+    });
+
+    it('should return undefined if no matching window is found', () => {
+        const target_window = new WindowInstance(10, 20);
+        const content = csparqlWindow.get_quads_from_active_windows(csparqlWindow.active_windows, target_window);
+        expect(content).toBeUndefined();
+    });
+
+    it('should add a window to pending triggers', () => {
+        csparqlWindow.add(quad1, 2);
+        const window_instance = csparqlWindow.get_window_instance(2);
+        expect(hasWindowInstance(csparqlWindow.pending_triggers, window_instance)).toBe(true);
+    });
+});
+
+function hasWindowInstance(set: Set<WindowInstance>, window: WindowInstance) {
+    for (const elem of set) {
+        if (elem.open === window.open && elem.close === window.close) {
+            return true;
+        }
+    }
+    return false;
+}

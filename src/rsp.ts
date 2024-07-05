@@ -64,16 +64,21 @@ export class RSPEngine {
      *
      * @param query
      */
-    constructor(query: string, max_delay: number) {
+    constructor(query: string, max_delay?: number) {
         this.windows = new Array<CSPARQLWindow>();
-        this.max_delay = max_delay;
+        if (max_delay) {
+            this.max_delay = max_delay;
+        }
+        else {
+            this.max_delay = 0;
+        }
         this.streams = new Map<string, RDFStream>();
         const logLevel: LogLevel = LogLevel[LOG_CONFIG.log_level as keyof typeof LogLevel];
         this.logger = new Logger(logLevel, LOG_CONFIG.classes_to_log, LOG_CONFIG.destination as unknown as LogDestination);
         const parser = new RSPQLParser();
         const parsed_query = parser.parse(query);
         parsed_query.s2r.forEach((window: WindowDefinition) => {
-            const windowImpl = new CSPARQLWindow(window.window_name, window.width, window.slide, ReportStrategy.OnWindowClose, Tick.TimeDriven, 0, this.max_delay);
+            const windowImpl = new CSPARQLWindow(window.window_name, window.width, window.slide, ReportStrategy.OnWindowClose, Tick.TimeDriven, 0, this.max_delay);            
             this.windows.push(windowImpl);
             const stream = new RDFStream(window.stream_name, windowImpl);
             this.streams.set(window.stream_name, stream);
@@ -93,6 +98,7 @@ export class RSPEngine {
                 if (data) {
                     if (data.len() > 0) {
                         this.logger.info(`Received window content for time ${data.last_time_changed()}`, `RSPEngine`);
+                        console.log(`Received window content for time ${data.last_time_changed()}`, `RSPEngine`);
                         // iterate over all the windows
                         for (const windowIt of this.windows) {
                             // filter out the current triggering one
@@ -105,6 +111,7 @@ export class RSPEngine {
                             }
                         }
                         this.logger.info(`Starting Window Query Processing for the window time ${data.last_time_changed()} with window size ${data.len()}`, `RSPEngine`);
+                        console.log(`Starting Window Query Processing for the window time ${data.last_time_changed()} with window size ${data.len()}`, `RSPEngine`);
                         const bindingsStream = await this.r2r.execute(data);
                         bindingsStream.on('data', (binding: any) => {
                             const object_with_timestamp: binding_with_timestamp = {
@@ -152,4 +159,6 @@ export class RSPEngine {
         });
         return streams;
     }
+
+
 }

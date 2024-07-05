@@ -1,6 +1,8 @@
 import { EventEmitter } from "events";
 // @ts-ignore
 import { Quad } from 'n3';
+import { DataFactory } from "n3";
+const { namedNode, literal, defaultGraph, quad } = DataFactory;
 
 export enum ReportStrategy {
     NonEmptyContent,
@@ -113,7 +115,7 @@ export class CSPARQLWindow {
     private current_watermark: number; // To track the current watermark of the window
     public late_buffer: Map<number, Set<Quad>>; // Buffer for out-of-order late elements
     public max_delay: number; // The maximum delay allowed for a observation to be considered in the window
-    private pending_triggers: Set<WindowInstance>; // Tracking windows that have pending triggers
+    public pending_triggers: Set<WindowInstance>; // Tracking windows that have pending triggers
     /**
      *
      * @param name
@@ -173,7 +175,6 @@ export class CSPARQLWindow {
         if (timestamp > this.time) {
             this.time = timestamp;
         }
-        console.log("Current Time: " + this.time + " Event Time: " + t_e);
 
         if (this.if_event_late(t_e)) {
             console.log("Event is late at time " + t_e);
@@ -223,6 +224,16 @@ export class CSPARQLWindow {
         }
     }
 
+    add_window_instance_to_pending_triggers(t_e: number) {
+        let window_instance = this.get_window_instance(t_e);
+        if (this.hasWindowInstance(this.pending_triggers, window_instance)) {
+            return;
+        }
+        else {
+            this.pending_triggers.add(window_instance);
+        }
+    }
+
     /**
      *
      * @param e
@@ -238,12 +249,11 @@ export class CSPARQLWindow {
                     temp_window.add(e, t_e);
                 }
             } else if (t_e >= w.close) {
-                toEvict.add(w);                
+                toEvict.add(w);
             }
         }
         this.update_watermark(t_e);
-        console.log(this.get_window_instance(t_e));
-        this.pending_triggers.add(this.get_window_instance(t_e))
+        this.add_window_instance_to_pending_triggers(t_e);
         return toEvict;
     }
 
@@ -264,14 +274,14 @@ export class CSPARQLWindow {
     update_watermark(new_time: number) {
         if (new_time > this.current_watermark) {
             this.current_watermark = new_time;
-            this.check_watermark();
+            this.evict_and_trigger_on_watermark();
         }
     }
 
     /**
      *
      */
-    check_watermark() {
+    evict_and_trigger_on_watermark() {
         // Evict windows that are out of the watermark and should be evicted.
         const to_evict = new Set<WindowInstance>();
         // Checking all of the currently active windows.
@@ -301,14 +311,9 @@ export class CSPARQLWindow {
      */
     emit_on_trigger(t_e: number) {
         this.pending_triggers.forEach((window: WindowInstance) => {
-            console.log("Checking window [" + window.open + "," + window.close + ")");
-            const content = this.active_windows.get(window);
-
-            console.log(`Content of the window  `,content);
-            
+            let content = this.get_quads_from_active_windows(this.active_windows, window);
             if (content) {
                 let should_emit = false;
-
                 if (this.report == ReportStrategy.OnWindowClose) {
                     if (window.close <= t_e) {
                         should_emit = true;
@@ -319,21 +324,14 @@ export class CSPARQLWindow {
                 }
 
                 if (should_emit) {
-                    if (this.tick == Tick.TimeDriven) {
-                        if (t_e > this.time) {
-                            this.time = t_e;
-                            if (!window.has_triggered || this.report == ReportStrategy.OnContentChange) {
-                                window.has_triggered = true;
-                                this.emitter.emit('RStream', content);
-                                console.log("Window [" + window.open + "," + window.close + ") triggers. Content: " + content);
-                            }
-                        }
+                    this.time = t_e;
+                    if (!window.has_triggered || this.report == ReportStrategy.OnContentChange) {
+                        window.has_triggered = true;
+                        console.log("Window [" + window.open + "," + window.close + ") triggers. Content: " + content);
+                        this.emitter.emit('RStream', content);
                     }
                     this.pending_triggers.delete(window);
                 }
-            }
-            else {
-                console.error("Window [" + window.open + "," + window.close + ") has no content");
             }
         })
     }
@@ -414,6 +412,28 @@ export class CSPARQLWindow {
      */
     set_current_time(t: number) {
         this.time = t;
+    }
+
+    set_current_watermark(t: number) {
+        this.current_watermark = t;
+    }
+
+    get_quads_from_active_windows(map: Map<WindowInstance, QuadContainer>, target: WindowInstance) {
+        for (let [key, value] of map.entries()) {
+            if (key.open === target.open && key.close === target.close && key.has_triggered === target.has_triggered) {
+                return value;
+            }
+        }
+        return undefined;
+    }
+
+    hasWindowInstance(set: Set<WindowInstance>, window: WindowInstance) {
+        for (const elem of set) {
+            if (elem.open === window.open && elem.close === window.close) {
+                return true;
+            }
+        }
+        return false;
     }
 }
 /**
