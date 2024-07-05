@@ -54,7 +54,7 @@ test('rsp_consumer_test', async () => {
     // @ts-ignore
     emitter.on('RStream', (object) => {
         console.log("received results");
-        
+
         results.push(object.bindings.toString());
     });
 
@@ -90,7 +90,7 @@ test('rsp_multiple_same_window_test', async () => {
     const results = new Array<string>();
 
     console.log(rspEngine.get_all_streams());
-    
+
     // @ts-ignore
     emitter.on('RStream', (object) => {
         console.log("received results");
@@ -265,3 +265,89 @@ test('test setting the max delay for out of order events', async () => {
     let rsp_engine_2 = new RSPEngine(query, 1000);
     expect(rsp_engine_2.max_delay).toBe(1000);
 });
+
+
+test('test out of order processing with different delays', async () => {
+    const query = `
+    PREFIX : <https://rsp.js/>
+    REGISTER RStream <output> AS
+    SELECT *
+    FROM NAMED WINDOW :w1 ON STREAM :stream1 [RANGE 10 STEP 2]
+    WHERE{
+        WINDOW :w1 { ?s ?p ?o}
+    }
+    `;
+
+    const rsp_engine = new RSPEngine(query);
+    const stream = rsp_engine.getStream("https://rsp.js/stream1");
+    const emitter = rsp_engine.register();
+    const results = new Array<string>();
+
+    const event =  quad(
+        namedNode(`https://rsp.js/test_subject`),
+        namedNode('http://rsp.js/test_property'),
+        namedNode('http://rsp.js/test_object'),
+        defaultGraph()
+    )
+
+    emitter.on('RStream', (object: any) => {
+        results.push(object.bindings.toString());
+    });
+
+    if (stream) {
+        stream.add(event, 0);
+        stream.add(event, 3);
+        stream.add(event, 1);
+        stream.add(event, 2);
+        stream.add(event, 4);
+    }
+
+    const sleep = (ms: any) => new Promise(r => setTimeout(r, ms));
+    await sleep(2000);
+
+    expect(results.length).toBeGreaterThan(0);
+    console.log(results);
+});
+
+
+test('test ooo event processing with varying delay settings', async() => {
+    const query = `
+    PREFIX : <https://rsp.js/>
+    REGISTER RStream <output> AS
+    SELECT *
+    FROM NAMED WINDOW :w1 ON STREAM :stream1 [RANGE 10 STEP 2]
+    WHERE{
+        WINDOW :w1 { ?s ?p ?o}
+    }
+    `;
+
+    const rsp_engine = new RSPEngine(query, 1000);
+    const stream = rsp_engine.getStream("https://rsp.js/stream1");
+    const emitter = rsp_engine.register();
+    const results = new Array<string>();
+
+    const event =  quad(
+        namedNode(`https://rsp.js/test_subject`),
+        namedNode('http://rsp.js/test_property'),
+        namedNode('http://rsp.js/test_object'),
+        defaultGraph()
+    )
+
+    emitter.on('RStream', (object: any) => {
+        results.push(object.bindings.toString());
+    });
+
+    if (stream) {
+        stream.add(event, 0);
+        stream.add(event, 3);
+        stream.add(event, 1);
+        stream.add(event, 2);
+        stream.add(event, 4);
+    }
+
+    const sleep = (ms: any) => new Promise(r => setTimeout(r, ms));
+    await sleep(2000);
+
+    expect(results.length).toBeGreaterThan(0);
+    console.log(results);
+})

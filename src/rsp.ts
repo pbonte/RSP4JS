@@ -120,6 +120,7 @@ export class RSPEngine {
                                 timestamp_to: window.t0 + window.slide
                             }
                             window.t0 += window.slide;
+                            this.logger.info(`Value ${object_with_timestamp}`, `RSPEngine`);
                             emitter.emit("RStream", object_with_timestamp);
                         });
                         bindingsStream.on('end', () => {
