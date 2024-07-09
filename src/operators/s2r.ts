@@ -297,6 +297,7 @@ export class CSPARQLWindow {
      *  Evict the windows that are out of the watermark and trigger the windows that are within the watermark.
      */
     evict_and_trigger_on_watermark() {
+
         // Evict windows that are out of the watermark and should be evicted.
         const to_evict = new Set<WindowInstance>();
         // Checking all of the currently active windows.
@@ -308,8 +309,7 @@ export class CSPARQLWindow {
                 to_evict.add(window);
             }
         });
-
-
+        this.logger.info(`Current watermark: ${this.current_watermark} to emit triggers for the window`, `CSPARQLWindow`);
         // Emit triggers for the windows that are within the watermark, if any. 
         this.emit_on_trigger(this.current_watermark);
 
@@ -348,9 +348,9 @@ export class CSPARQLWindow {
                             this.logger.info(`Window ${window.getDefinition()} is already triggered so not triggering it again.`, `CSPARQLWindow`);
                         }
                         else {
+                            window.has_triggered = true;
                             this.logger.info(`Window ${window.getDefinition()} triggers with Content: " + ${content}`, `CSPARQLWindow`);
                             this.emitter.emit('RStream', content);
-                            window.has_triggered = true;
                         }
                     }
                     this.pending_triggers.delete(window);
@@ -420,18 +420,22 @@ export class CSPARQLWindow {
      * The function is currently called periodically based on the slide of the window.
      */
     process_late_elements() {
-        this.logger.info(`Processing late elements for the window with the late_buffer size ${this.late_buffer.size}`, `CSPARQLWindow`)
-        this.late_buffer.forEach((elements: Set<Quad>, timestamp: number) => {
-            elements.forEach((element: Quad) => {
-                const to_evict = new Set<WindowInstance>();
-                this.process_event(element, timestamp);
-                for (const w of to_evict) {
-                    console.debug("Evicting Late [" + w.open + "," + w.close + ")");
-                    this.active_windows.delete(w);
-                }
+        if (this.late_buffer.size == 0) {
+            return;
+        } else {
+            this.logger.info(`Processing late elements for the window with the late_buffer size ${this.late_buffer.size}`, `CSPARQLWindow`)
+            this.late_buffer.forEach((elements: Set<Quad>, timestamp: number) => {
+                elements.forEach((element: Quad) => {
+                    const to_evict = new Set<WindowInstance>();
+                    this.process_event(element, timestamp);
+                    for (const w of to_evict) {
+                        console.debug("Evicting Late [" + w.open + "," + w.close + ")");
+                        this.active_windows.delete(w);
+                    }
+                });
             });
-        });
-        this.late_buffer.clear();
+            this.late_buffer.clear();
+        }
     }
 
     /**

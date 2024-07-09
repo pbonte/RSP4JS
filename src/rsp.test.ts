@@ -348,6 +348,12 @@ test('test ooo event processing with varying delay settings', async () => {
         stream.add(event, 1);
         stream.add(event, 2);
         stream.add(event, 4);
+        stream.add(event, 5);
+        stream.add(event, 6);
+        stream.add(event, 7);
+        stream.add(event, 8);
+        stream.add(event, 9);
+        stream.add(event, 7);
     }
 
     const sleep = (ms: any) => new Promise(r => setTimeout(r, ms));
