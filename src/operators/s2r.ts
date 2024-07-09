@@ -178,6 +178,7 @@ export class CSPARQLWindow {
      */
     add(e: Quad, timestamp: number) {
         console.debug("Window " + this.name + " Received element (" + e + "," + timestamp + ")");
+        this.time = timestamp;
         const t_e = timestamp;
         if (timestamp > this.time) {
             this.time = timestamp;
@@ -289,7 +290,12 @@ export class CSPARQLWindow {
     update_watermark(new_time: number) {
         if (new_time > this.current_watermark) {
             this.current_watermark = new_time;
+            this.logger.info(`Watermark is increasing ${this.current_watermark} and time ${this.time}`, `CSPARQLWindow`);
             this.evict_and_trigger_on_watermark();
+        }
+        else {
+            console.error("Watermark is not increasing");
+            this.logger.info(`Watermark is not increasing ${this.current_watermark} and time ${this.time}`, `CSPARQLWindow`);
         }
     }
 
