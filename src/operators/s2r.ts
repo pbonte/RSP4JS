@@ -342,9 +342,14 @@ export class CSPARQLWindow {
                 if (should_emit) {
                     this.time = t_e;
                     if (!window.has_triggered || this.report == ReportStrategy.OnContentChange) {
-                        window.has_triggered = true;
-                        this.logger.info(`Window ${window.getDefinition()} triggers with Content: " + ${content}`, `CSPARQLWindow`);
-                        this.emitter.emit('RStream', content);
+                        if (window.has_triggered) {
+                            this.logger.info(`Window ${window.getDefinition()} is already triggered so not triggering it again.`, `CSPARQLWindow`);
+                        }
+                        else {
+                            this.logger.info(`Window ${window.getDefinition()} triggers with Content: " + ${content}`, `CSPARQLWindow`);
+                            this.emitter.emit('RStream', content);
+                            window.has_triggered = true;
+                        }
                     }
                     this.pending_triggers.delete(window);
                 }
