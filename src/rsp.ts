@@ -59,6 +59,7 @@ export class RSPEngine {
     windows: Array<CSPARQLWindow>;
     streams: Map<string, RDFStream>;
     public max_delay: number;
+    public time_to_trigger_processing_late_elements: number;
     private r2r: R2ROperator;
     private logger: Logger;
 
@@ -68,13 +69,18 @@ export class RSPEngine {
      * @param {number} max_delay - The maximum delay for the window to be processed in the case of late data arrival and out of order data.
      * This field is optional and defaults to 0 for no delay expected by the RSP Engine in processing of the data.
      */
-    constructor(query: string, max_delay?: number) {
+    constructor(query: string, opts?: {
+        max_delay?: number
+        time_to_trigger_processing_late_elements?: number
+    }) {
         this.windows = new Array<CSPARQLWindow>();
-        if (max_delay) {
-            this.max_delay = max_delay;
+        if (opts) {
+            this.max_delay = opts.max_delay ? opts.max_delay : 0;
+            this.time_to_trigger_processing_late_elements = opts.time_to_trigger_processing_late_elements ? opts.time_to_trigger_processing_late_elements : 0;
         }
         else {
             this.max_delay = 0;
+            this.time_to_trigger_processing_late_elements = 60000;
         }
         this.streams = new Map<string, RDFStream>();
         const logLevel: LogLevel = LogLevel[LOG_CONFIG.log_level as keyof typeof LogLevel];
@@ -82,7 +88,7 @@ export class RSPEngine {
         const parser = new RSPQLParser();
         const parsed_query = parser.parse(query);
         parsed_query.s2r.forEach((window: WindowDefinition) => {
-            const windowImpl = new CSPARQLWindow(window.window_name, window.width, window.slide, ReportStrategy.OnWindowClose, Tick.TimeDriven, 0, this.max_delay);
+            const windowImpl = new CSPARQLWindow(window.window_name, window.width, window.slide, ReportStrategy.OnWindowClose, Tick.TimeDriven, 0, this.max_delay, this.time_to_trigger_processing_late_elements);
             this.windows.push(windowImpl);
             const stream = new RDFStream(window.stream_name, windowImpl);
             this.streams.set(window.stream_name, stream);

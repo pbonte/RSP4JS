@@ -119,6 +119,7 @@ export class CSPARQLWindow {
     public late_buffer: Map<number, Set<Quad>>; // Buffer for out-of-order late elements
     public max_delay: number; // The maximum delay allowed for a observation to be considered in the window
     public pending_triggers: Set<WindowInstance>; // Tracking windows that have pending triggers
+    public time_to_trigger_processing_late_elements: number; // The time to trigger the processing of the late elements
     /**
      *
      * @param {string} name - The name of the CSPARQL Window.
@@ -129,12 +130,13 @@ export class CSPARQLWindow {
      * @param {number} start_time - The start time of the window.
      * @param {number} max_delay - The maximum delay allowed for an observation to be considered in the window used for out-of-order processing.
      */
-    constructor(name: string, width: number, slide: number, report: ReportStrategy, tick: Tick, start_time: number, max_delay: number) {
+    constructor(name: string, width: number, slide: number, report: ReportStrategy, tick: Tick, start_time: number, max_delay: number, time_to_trigger_processing_late_elements: number) {
         this.name = name;
         this.width = width;
         this.slide = slide;
         this.report = report;
         this.tick = tick;
+        this.time_to_trigger_processing_late_elements = time_to_trigger_processing_late_elements;
         const log_level: LogLevel = LogLevel[LOG_CONFIG.log_level as keyof typeof LogLevel];
         this.logger = new Logger(log_level, LOG_CONFIG.classes_to_log, LOG_CONFIG.destination as unknown as LogDestination);
         this.time = start_time;
@@ -145,7 +147,7 @@ export class CSPARQLWindow {
         this.max_delay = max_delay;
         this.pending_triggers = new Set<WindowInstance>();
         this.late_buffer = new Map<number, Set<Quad>>();
-        this.interval_id = setInterval(() => { this.process_late_elements() }, this.slide);
+        this.interval_id = setInterval(() => { this.process_late_elements() }, time_to_trigger_processing_late_elements);
     }
     /**
      * Get the content of the window at the given timestamp if it exists, else return undefined.

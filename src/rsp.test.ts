@@ -260,7 +260,10 @@ test('test setting the max delay for out of order events', async () => {
 
     const rsp_engine = new RSPEngine(query);
     expect(rsp_engine.max_delay).toBe(0);
-    const rsp_engine_2 = new RSPEngine(query, 1000);
+    const rsp_engine_2 = new RSPEngine(query, {
+        max_delay: 1000,
+        time_to_trigger_processing_late_elements: 60000
+    });
     expect(rsp_engine_2.max_delay).toBe(1000);
 });
 
@@ -320,7 +323,10 @@ test('test ooo event processing with varying delay settings', async () => {
     `;
 
 
-    const rsp_engine = new RSPEngine(query, 1000);
+    const rsp_engine = new RSPEngine(query, {
+        max_delay: 1000,
+        time_to_trigger_processing_late_elements: 1000
+    });
     const stream = rsp_engine.getStream("https://rsp.js/stream1");
     const emitter = rsp_engine.register();
     const results = new Array<string>();
@@ -388,7 +394,10 @@ describe.skip('test the rsp engine with out of order processing with various dat
         jest.setTimeout(100000);
         const parser = new RSPQLParser();
         const parsed_query = parser.parse(query);
-        const rsp_engine = new RSPEngine(query, 1000);
+        const rsp_engine = new RSPEngine(query, {
+            max_delay: 1000,
+            time_to_trigger_processing_late_elements: 60000
+        });
         let emitter = rsp_engine.register();
         const results = new Array<string>();
 

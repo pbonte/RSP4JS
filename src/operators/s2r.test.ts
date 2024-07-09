@@ -57,12 +57,12 @@ describe('CSPARQLWindow', () => {
             defaultGraph(),
         );
 
-        const csparqlWindow = new CSPARQLWindow(":window1", 10, 2, ReportStrategy.OnWindowClose, Tick.TimeDriven, 0, 60000);
+        const csparqlWindow = new CSPARQLWindow(":window1", 10, 2, ReportStrategy.OnWindowClose, Tick.TimeDriven, 0, 60000, 60000);
         csparqlWindow.add(quad1, 0);
     });
 
     test('test_scope', () => {
-        const csparqlWindow = new CSPARQLWindow(":window1", 10, 2, ReportStrategy.OnWindowClose, Tick.TimeDriven, 0, 60000);
+        const csparqlWindow = new CSPARQLWindow(":window1", 10, 2, ReportStrategy.OnWindowClose, Tick.TimeDriven, 0, 60000, 60000);
         csparqlWindow.scope(4);
 
         const num_active_windows = csparqlWindow.active_windows.size;
@@ -80,7 +80,7 @@ describe('CSPARQLWindow', () => {
     });
 
     test('test_evictions', () => {
-        const csparqlWindow = new CSPARQLWindow(":window1", 10, 2, ReportStrategy.OnWindowClose, Tick.TimeDriven, 0, 60000);
+        const csparqlWindow = new CSPARQLWindow(":window1", 10, 2, ReportStrategy.OnWindowClose, Tick.TimeDriven, 0, 60000, 60000);
 
         generate_data(10, csparqlWindow);
 
@@ -91,7 +91,7 @@ describe('CSPARQLWindow', () => {
     test('test_stream_consumer', () => {
         const recevied_data = new Array<QuadContainer>();
         const received_elementes = new Array<Quad>;
-        const csparqlWindow = new CSPARQLWindow(":window1", 10, 2, ReportStrategy.OnWindowClose, Tick.TimeDriven, 0, 60000);
+        const csparqlWindow = new CSPARQLWindow(":window1", 10, 2, ReportStrategy.OnWindowClose, Tick.TimeDriven, 0, 60000, 60000);
         // register window consumer
         csparqlWindow.subscribe('RStream', function (data: QuadContainer) {
             console.log('Foo raised, Args:', data);
@@ -111,7 +111,7 @@ describe('CSPARQLWindow', () => {
     test('test_content_get', () => {
         const recevied_data = new Array<QuadContainer>();
         const received_elementes = new Array<Quad>;
-        const csparqlWindow = new CSPARQLWindow(":window1", 10, 2, ReportStrategy.OnWindowClose, Tick.TimeDriven, 0, 60000);
+        const csparqlWindow = new CSPARQLWindow(":window1", 10, 2, ReportStrategy.OnWindowClose, Tick.TimeDriven, 0, 60000, 60000);
 
         // generate some data
         generate_data(10, csparqlWindow);
@@ -136,7 +136,7 @@ describe('CSPARQLWindow OOO', () => {
     const quad2 = quad(DataFactory.blankNode(), DataFactory.namedNode('predicate'), DataFactory.literal('object2'));
 
     beforeEach(() => {
-        window = new CSPARQLWindow('testWindow', width, slide, ReportStrategy.OnWindowClose, Tick.TimeDriven, startTime, maxDelay);
+        window = new CSPARQLWindow('testWindow', width, slide, ReportStrategy.OnWindowClose, Tick.TimeDriven, startTime, maxDelay, 1000);
     });
 
     afterEach(() => {
@@ -227,7 +227,7 @@ describe('CSPARQLWindow OOO', () => {
     });
 
     test('should trigger on window change', (done) => {
-        const report_window = new CSPARQLWindow('reportWindow', width, slide, ReportStrategy.OnWindowClose, Tick.TimeDriven, startTime, maxDelay);
+        const report_window = new CSPARQLWindow('reportWindow', width, slide, ReportStrategy.OnWindowClose, Tick.TimeDriven, startTime, maxDelay, 1000);
         const callback = jest.fn((data: QuadContainer) => {
             console.log('Callback called');
             expect(data.len()).toBe(1);
@@ -258,7 +258,7 @@ describe('CSPARQL Window Watermark Test', () => {
     beforeEach(() => {
         quad1 = {} as Quad
 
-        csparqlWindow = new CSPARQLWindow('testWindow', 10, 5, ReportStrategy.OnWindowClose, Tick.TimeDriven, 0, 5);
+        csparqlWindow = new CSPARQLWindow('testWindow', 10, 5, ReportStrategy.OnWindowClose, Tick.TimeDriven, 0, 5, 1000);
         window1 = new WindowInstance(0, 10);
         window2 = new WindowInstance(5, 15);
         quadContainer1 = new QuadContainer(new Set<Quad>([quad1]), 5);
@@ -304,7 +304,7 @@ describe('CSPARQLWindow emit_on_trigger', () => {
 
     beforeEach(() => {
         quad1 = {} as Quad;
-        csparqlWindow = new CSPARQLWindow('testWindow', 10, 5, ReportStrategy.OnWindowClose, Tick.TimeDriven, 0, 5);
+        csparqlWindow = new CSPARQLWindow('testWindow', 10, 5, ReportStrategy.OnWindowClose, Tick.TimeDriven, 0, 5, 1000);
         window1 = new WindowInstance(0, 10);
         quadContainer1 = new QuadContainer(new Set<Quad>([quad1]), 5);
         csparqlWindow.active_windows.set(window1, quadContainer1);
@@ -357,7 +357,7 @@ describe('CSPARQLWindow get quads from active windows', () => {
     beforeEach(() => {
         quad1 = {} as Quad;
 
-        csparqlWindow = new CSPARQLWindow('testWindow', 10, 5, ReportStrategy.OnWindowClose, Tick.TimeDriven, 0, 5);
+        csparqlWindow = new CSPARQLWindow('testWindow', 10, 5, ReportStrategy.OnWindowClose, Tick.TimeDriven, 0, 5, 1000);
         window1 = new WindowInstance(0, 10);
         quadContainer1 = new QuadContainer(new Set<Quad>([quad1]), 9);
         window2 = new WindowInstance(5, 15);
