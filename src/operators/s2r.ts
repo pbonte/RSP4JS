@@ -99,33 +99,35 @@ export class QuadContainer {
 }
 
 /**
- *
+ * CSPARQL Window class that implements the windowing mechanism for the RSP Engine.
+ * The class is responsible for managing the windows, processing the events, and emitting the triggers based on the report strategy.
+ * The class also handles the out-of-order processing of the events based on the maximum delay allowed for the events and the watermark.
  */
 export class CSPARQLWindow {
-    width: number;
-    slide: number;
-    time: number;
-    t0: number;
-    active_windows: Map<WindowInstance, QuadContainer>;
-    report: ReportStrategy;
+    width: number; // The width of the window
+    slide: number; // The slide of the window
+    time: number; // The current time of the window
+    t0: number; // The start time of the window
+    active_windows: Map<WindowInstance, QuadContainer>; // The active windows in the window and the content of the window
+    report: ReportStrategy; // The report strategy for the window
     logger: Logger; // Logger for the CSPARQL Window
-    tick: Tick;
-    emitter: EventEmitter;
-    interval_id: NodeJS.Timeout;
-    name: string;
+    tick: Tick;   // The tick of the window
+    emitter: EventEmitter; // The event emitter for the window
+    interval_id: NodeJS.Timeout; // The interval id for the out-of-order processing of the late elements
+    name: string; // The name of the window
     private current_watermark: number; // To track the current watermark of the window
     public late_buffer: Map<number, Set<Quad>>; // Buffer for out-of-order late elements
     public max_delay: number; // The maximum delay allowed for a observation to be considered in the window
     public pending_triggers: Set<WindowInstance>; // Tracking windows that have pending triggers
     /**
      *
-     * @param name
-     * @param width
-     * @param slide
-     * @param report
-     * @param tick
-     * @param start_time
-     * @param max_delay
+     * @param {string} name - The name of the CSPARQL Window.
+     * @param {number} width - The width of the window.
+     * @param {number} slide - The slide of the window.
+     * @param {ReportStrategy} report - The report strategy for the window.
+     * @param {Tick} tick - The tick of the window.
+     * @param {number} start_time - The start time of the window.
+     * @param {number} max_delay - The maximum delay allowed for an observation to be considered in the window used for out-of-order processing.
      */
     constructor(name: string, width: number, slide: number, report: ReportStrategy, tick: Tick, start_time: number, max_delay: number) {
         this.name = name;
@@ -146,8 +148,8 @@ export class CSPARQLWindow {
         this.interval_id = setInterval(() => { this.process_late_elements() }, this.slide);
     }
     /**
-     *
-     * @param timestamp
+     * Get the content of the window at the given timestamp if it exists, else return undefined.
+     * @param {number} timestamp - The timestamp for which the content of the window is to be retrieved.
      */
     getContent(timestamp: number): QuadContainer | undefined {
         let max_window = null;
@@ -168,9 +170,9 @@ export class CSPARQLWindow {
     }
 
     /**
-     *
-     * @param e
-     * @param timestamp
+     * Add the event to the window at the given timestamp and checks if the event is late or not.
+     * @param {Quad} e - The event to be added to the window.
+     * @param {number} timestamp - The timestamp of the event.
      */
     add(e: Quad, timestamp: number) {
         console.debug("Window " + this.name + " Received element (" + e + "," + timestamp + ")");
@@ -189,17 +191,17 @@ export class CSPARQLWindow {
     }
 
     /**
-     *
-     * @param timestamp
+     * Check if the event is late or not based on the timestamp of the event and comparing it to the current time of the window.
+     * @param {number} timestamp - The timestamp of the event.
      */
     if_event_late(timestamp: number) {
         return this.time > timestamp;
     }
 
     /**
-     * 
-     * @param e
-     * @param timestamp
+     * Buffer the late event for out-of-order processing based on the maximum delay allowed for the events.
+     * @param {Quad} e - The event to be buffered.
+     * @param {number} timestamp - The timestamp of the event.
      */
     buffer_late_event(e: Quad, timestamp: number) {
         if (this.time - timestamp > this.max_delay) {
@@ -213,6 +215,7 @@ export class CSPARQLWindow {
                 this.late_buffer.set(timestamp, new Set<Quad>());
             }
             this.late_buffer.get(timestamp)?.add(e);
+            this.logger.info(`Size of the late buffer from the buffer_late_event method: ${this.late_buffer.size}`, `CSPARQLWindow`);
         }
     }
 
@@ -288,8 +291,8 @@ export class CSPARQLWindow {
         }
     }
 
-    /**
-     * 
+    /** 
+     *  Evict the windows that are out of the watermark and trigger the windows that are within the watermark.
      */
     evict_and_trigger_on_watermark() {
         // Evict windows that are out of the watermark and should be evicted.
@@ -332,15 +335,21 @@ export class CSPARQLWindow {
                 else if (this.report == ReportStrategy.OnContentChange) {
                     should_emit = true;
                 }
+                else {
+                    should_emit = false;
+                }
 
                 if (should_emit) {
                     this.time = t_e;
                     if (!window.has_triggered || this.report == ReportStrategy.OnContentChange) {
                         window.has_triggered = true;
-                        console.log("Window [" + window.open + "," + window.close + ") triggers. Content: " + content);
+                        this.logger.info(`Window ${window.getDefinition()} triggers with Content: " + ${content}`, `CSPARQLWindow`);
                         this.emitter.emit('RStream', content);
                     }
                     this.pending_triggers.delete(window);
+                }
+                else {
+                    console.error("Window [" + window.open + "," + window.close + ") should not trigger");
                 }
             }
         })
@@ -404,6 +413,7 @@ export class CSPARQLWindow {
      * The function is currently called periodically based on the slide of the window.
      */
     process_late_elements() {
+        this.logger.info(`Processing late elements for the window with the late_buffer size ${this.late_buffer.size}`, `CSPARQLWindow`)
         this.late_buffer.forEach((elements: Set<Quad>, timestamp: number) => {
             elements.forEach((element: Quad) => {
                 const to_evict = new Set<WindowInstance>();
@@ -434,9 +444,9 @@ export class CSPARQLWindow {
     }
 
     /**
-     * 
-     * @param map
-     * @param target
+     *  Get the quads from the active windows based on the given window instance. The function is used to get the content of the window based on the window instance.
+     * @param {Map<WindowInstance, QuadContainer>} map - The map of the active windows.
+     * @param {WindowInstance} target - The window instance for which the content is to be retrieved.
      */
     get_quads_from_active_windows(map: Map<WindowInstance, QuadContainer>, target: WindowInstance) {
         for (const [key, value] of map.entries()) {
