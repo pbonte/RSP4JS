@@ -1,8 +1,8 @@
 import { EventEmitter } from "events";
 // @ts-ignore
 import { Quad } from 'n3';
-import { DataFactory } from "n3";
-const { namedNode, literal, defaultGraph, quad } = DataFactory;
+import { Logger, LogLevel, LogDestination } from "../util/Logger";
+import * as LOG_CONFIG from "../config/log_config.json";
 
 export enum ReportStrategy {
     NonEmptyContent,
@@ -38,7 +38,7 @@ export class WindowInstance {
      *
      */
     getDefinition() {
-        return "[" + this.open + "," + this.close + ")";
+        return "[" + this.open + "," + this.close + ")" + " Triggered: " + this.has_triggered;
     }
     /**
      *
@@ -108,6 +108,7 @@ export class CSPARQLWindow {
     t0: number;
     active_windows: Map<WindowInstance, QuadContainer>;
     report: ReportStrategy;
+    logger: Logger; // Logger for the CSPARQL Window
     tick: Tick;
     emitter: EventEmitter;
     interval_id: NodeJS.Timeout;
@@ -132,6 +133,8 @@ export class CSPARQLWindow {
         this.slide = slide;
         this.report = report;
         this.tick = tick;
+        const log_level: LogLevel = LogLevel[LOG_CONFIG.log_level as keyof typeof LogLevel];
+        this.logger = new Logger(log_level, LOG_CONFIG.classes_to_log, LOG_CONFIG.destination as unknown as LogDestination);
         this.time = start_time;
         this.current_watermark = start_time;
         this.t0 = start_time;
@@ -181,10 +184,8 @@ export class CSPARQLWindow {
             this.buffer_late_event(e, t_e);
             return;
         }
-
         const to_evict = this.process_event(e, t_e);
         this.evict_windows(to_evict);
-
     }
 
     /**
@@ -196,15 +197,17 @@ export class CSPARQLWindow {
     }
 
     /**
-     *
+     * 
      * @param e
      * @param timestamp
      */
     buffer_late_event(e: Quad, timestamp: number) {
         if (this.time - timestamp > this.max_delay) {
+            this.logger.info(`Late element [" + ${e} + "] with timestamp [" + ${timestamp} + "] is out of the allowed delay [" + ${this.max_delay} + "]`, `CSPARQLWindow`);
             console.error("Late element [" + e + "] with timestamp [" + timestamp + "] is out of the allowed delay [" + this.max_delay + "]");
         }
         else {
+            this.logger.info(`Late element [" + ${e} + "] with timestamp [" + ${timestamp} + "] is being buffered for out of order processing`, `CSPARQLWindow`);
             console.warn("Late element [" + e + "] with timestamp [" + timestamp + "] is being buffered for out of order processing");
             if (!this.late_buffer.has(timestamp)) {
                 this.late_buffer.set(timestamp, new Set<Quad>());
@@ -214,8 +217,8 @@ export class CSPARQLWindow {
     }
 
     /**
-     *
-     * @param toEvict
+     * Evict the windows that are out of the watermark.
+     * @param {Set<WindowInstance>} toEvict - The set of windows to be evicted from the window to be processed by the R2R Operator.
      */
     evict_windows(toEvict: Set<WindowInstance>) {
         for (const w of toEvict) {
@@ -224,20 +227,26 @@ export class CSPARQLWindow {
         }
     }
 
+    /**
+     * Add the window instance to the pending triggers to be emitted.
+     * @param {number} t_e - The timestamp of the event to be processed.
+     */
     add_window_instance_to_pending_triggers(t_e: number) {
-        let window_instance = this.get_window_instance(t_e);
+        const window_instance = this.get_window_instance(t_e);
         if (this.hasWindowInstance(this.pending_triggers, window_instance)) {
             return;
         }
         else {
             this.pending_triggers.add(window_instance);
+            console.log(`Size of the pending triggers: ${this.pending_triggers.size}`);
+
         }
     }
 
     /**
-     *
-     * @param e
-     * @param t_e
+     * Process the event and update the watermark 
+     * @param {Quad} e - The event to be processed of the form {subject, predicate, object, graph}.
+     * @param {number} t_e - The timestamp of the event.
      */
     process_event(e: Quad, t_e: number) {
         const toEvict = new Set<WindowInstance>();
@@ -252,14 +261,15 @@ export class CSPARQLWindow {
                 toEvict.add(w);
             }
         }
+        this.logger.info(`Event [" + ${e} + "] with timestamp [" + ${t_e} + "] is being processed`, `CSPARQLWindow`);
         this.update_watermark(t_e);
         this.add_window_instance_to_pending_triggers(t_e);
         return toEvict;
     }
 
     /**
-     *
-     * @param t_e
+     * Get the window instance for the given timestamp.
+     * @param {number} t_e - The timestamp for which the window instance is to be retrieved.
      */
     get_window_instance(t_e: number) {
         const c_sup = Math.ceil((Math.abs(t_e - this.t0) / this.slide)) * this.slide;
@@ -279,7 +289,7 @@ export class CSPARQLWindow {
     }
 
     /**
-     *
+     * 
      */
     evict_and_trigger_on_watermark() {
         // Evict windows that are out of the watermark and should be evicted.
@@ -311,7 +321,7 @@ export class CSPARQLWindow {
      */
     emit_on_trigger(t_e: number) {
         this.pending_triggers.forEach((window: WindowInstance) => {
-            let content = this.get_quads_from_active_windows(this.active_windows, window);
+            const content = this.get_quads_from_active_windows(this.active_windows, window);
             if (content) {
                 let should_emit = false;
                 if (this.report == ReportStrategy.OnWindowClose) {
@@ -390,7 +400,8 @@ export class CSPARQLWindow {
     }
 
     /**
-     *
+     * Process the late elements that are out of order.
+     * The function is currently called periodically based on the slide of the window.
      */
     process_late_elements() {
         this.late_buffer.forEach((elements: Set<Quad>, timestamp: number) => {
@@ -407,19 +418,28 @@ export class CSPARQLWindow {
     }
 
     /**
-     *
-     * @param t
+     * Set the current time to the given value.
+     * @param {number} t - The time to be set.
      */
     set_current_time(t: number) {
         this.time = t;
     }
 
+    /**
+     * Set the watermark to the given value.
+     * @param {number} t - The watermark to be set.
+     */
     set_current_watermark(t: number) {
         this.current_watermark = t;
     }
 
+    /**
+     * 
+     * @param map
+     * @param target
+     */
     get_quads_from_active_windows(map: Map<WindowInstance, QuadContainer>, target: WindowInstance) {
-        for (let [key, value] of map.entries()) {
+        for (const [key, value] of map.entries()) {
             if (key.open === target.open && key.close === target.close && key.has_triggered === target.has_triggered) {
                 return value;
             }
@@ -427,6 +447,11 @@ export class CSPARQLWindow {
         return undefined;
     }
 
+    /**
+     *
+     * @param set
+     * @param window
+     */
     hasWindowInstance(set: Set<WindowInstance>, window: WindowInstance) {
         for (const elem of set) {
             if (elem.open === window.open && elem.close === window.close) {
@@ -435,6 +460,27 @@ export class CSPARQLWindow {
         }
         return false;
     }
+
+    /**
+     * Get a string representation of the CSPARQLWindow definition.
+     */
+    getCSPARQLWindowDefinition() {
+        let windowDefinitions = [];
+        for (const [window, quadContainer] of this.active_windows.entries()) {
+            windowDefinitions.push(window.getDefinition());
+        }
+        return `CSPARQLWindow {
+        name: ${this.name},
+        width: ${this.width},
+        slide: ${this.slide},
+        current_time: ${this.time},
+        current_watermark: ${this.current_watermark},
+        report_strategy: ${ReportStrategy[this.report]},
+        tick: ${Tick[this.tick]},
+        active_windows: [${windowDefinitions.join(", ")}]
+    }`;
+    }
+
 }
 /**
  *

@@ -5,7 +5,7 @@ import * as LOG_CONFIG from "./config/log_config.json";
 import { LogDestination, LogLevel, Logger } from "./util/Logger";
 const N3 = require('n3');
 const { DataFactory } = N3;
-const { namedNode, literal, defaultGraph, quad } = DataFactory;
+const { namedNode } = DataFactory;
 // @ts-ignore
 import { Quad } from 'n3';
 import { RSPQLParser, WindowDefinition } from "./rspql";
@@ -17,16 +17,17 @@ export type binding_with_timestamp = {
 }
 
 /**
- *
+ * RDF Stream Class to represent the stream of RDF Data.   
+ * It emits the data to the CSPARQL Window for processing.
  */
 export class RDFStream {
     name: string;
     emitter: EventEmitter;
 
     /**
-     *
-     * @param name
-     * @param window
+     * Constructor for the RDFStream class.
+     * @param {string} name - The name of the stream to be created.
+     * @param {CSPARQLWindow} window - The CSPARQL Window to which the stream is to be processed and emitted by the S2R Operator.
      */
     constructor(name: string, window: CSPARQLWindow) {
         this.name = name;
@@ -41,9 +42,9 @@ export class RDFStream {
     }
 
     /**
-     *
-     * @param event
-     * @param ts
+     * Adds the event to the RDF Stream to be processed by the RSP Engine.
+     * @param {Set<Quad>} event - The event to be added to the stream. The event is a set of quads of the form {subject, predicate, object, graph}.
+     * @param {number} ts - The timestamp of the event.
      */
     add(event: Set<Quad>, ts: number) {
         this.emitter.emit('data', new QuadContainer(event, ts));
@@ -51,7 +52,8 @@ export class RDFStream {
 }
 
 /**
- *
+ * RSPEngine Class to represent the RSP Engine.
+ * It contains the windows and streams of the RSP Engine.
  */
 export class RSPEngine {
     windows: Array<CSPARQLWindow>;
@@ -61,8 +63,10 @@ export class RSPEngine {
     private logger: Logger;
 
     /**
-     *
-     * @param query
+     * Constructor for the RSPEngine class.
+     * @param {string} query - The query to be executed by the RSP Engine.
+     * @param {number} max_delay - The maximum delay for the window to be processed in the case of late data arrival and out of order data.
+     * This field is optional and defaults to 0 for no delay expected by the RSP Engine in processing of the data.
      */
     constructor(query: string, max_delay?: number) {
         this.windows = new Array<CSPARQLWindow>();
@@ -78,7 +82,7 @@ export class RSPEngine {
         const parser = new RSPQLParser();
         const parsed_query = parser.parse(query);
         parsed_query.s2r.forEach((window: WindowDefinition) => {
-            const windowImpl = new CSPARQLWindow(window.window_name, window.width, window.slide, ReportStrategy.OnWindowClose, Tick.TimeDriven, 0, this.max_delay);            
+            const windowImpl = new CSPARQLWindow(window.window_name, window.width, window.slide, ReportStrategy.OnWindowClose, Tick.TimeDriven, 0, this.max_delay);
             this.windows.push(windowImpl);
             const stream = new RDFStream(window.stream_name, windowImpl);
             this.streams.set(window.stream_name, stream);
@@ -86,9 +90,9 @@ export class RSPEngine {
         this.r2r = new R2ROperator(parsed_query.sparql);
 
     }
-
     /**
-     *
+     * Register the RSP Engine to start processing the data.
+     * @returns {any} - The event emitter to emit the data to the RSP Engine.
      */
     register() {
         const EventEmitter = require('events').EventEmitter;
@@ -120,7 +124,6 @@ export class RSPEngine {
                                 timestamp_to: window.t0 + window.slide
                             }
                             window.t0 += window.slide;
-                            this.logger.info(`Value ${object_with_timestamp}`, `RSPEngine`);
                             emitter.emit("RStream", object_with_timestamp);
                         });
                         bindingsStream.on('end', () => {
@@ -135,23 +138,25 @@ export class RSPEngine {
     }
 
     /**
-     *
-     * @param stream_name
+     * Get the stream by the stream name.
+     * @param {string} stream_name - The name of the stream to be fetched.
+     * @returns {RDFStream | undefined} - The stream with the given name.
      */
     getStream(stream_name: string) {
         return this.streams.get(stream_name);
     }
 
     /**
-     *
-     * @param static_data
+     * Add static data to the RSP Engine.
+     * @param {Quad} static_data - The static data to be added to the RSP Engine.
      */
     addStaticData(static_data: Quad) {
         this.r2r.addStaticData(static_data);
     }
 
     /**
-     *
+     * Get all the streams of the RSP Engine.
+     * @returns {string[]} - The list of all the streams in the RSP Engine.
      */
     get_all_streams() {
         const streams: string[] = [];

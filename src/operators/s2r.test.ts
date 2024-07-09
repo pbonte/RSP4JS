@@ -210,20 +210,6 @@ describe('CSPARQLWindow OOO', () => {
         expect(windowInstance2.close).toBe(10);
     });
 
-    // test('should trigger event on window close', (done) => {
-    //     window.subscribe('RStream', (data: QuadContainer) => {
-    //         expect(data.len()).toBe(1);
-    //         done();
-    //     });
-    //     let activeWindows = Array.from(window.active_windows.keys());
-    //     window.add(quad1, 1);
-    //     window.set_current_time(12);
-    //     window.add(quad2, 12);
-    //     expect(activeWindows.length).toBe(2);
-    //     window.update_watermark(22);
-    //     expect(activeWindows.length).toBe(0);
-    // });
-
     test('should process late elements', () => {
         window.add(quad1, 6);
         window.add(quad2, 4);  // Late element
@@ -404,6 +390,11 @@ describe('CSPARQLWindow get quads from active windows', () => {
     });
 });
 
+/**
+ *
+ * @param set
+ * @param window
+ */
 function hasWindowInstance(set: Set<WindowInstance>, window: WindowInstance) {
     for (const elem of set) {
         if (elem.open === window.open && elem.close === window.close) {
