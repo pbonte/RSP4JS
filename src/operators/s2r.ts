@@ -4,6 +4,7 @@ import { Quad } from 'n3';
 import { Logger, LogLevel, LogDestination } from "../util/Logger";
 import * as LOG_CONFIG from "../config/log_config.json";
 
+/* eslint-disable no-unused-vars */
 export enum ReportStrategy {
     NonEmptyContent,
     OnContentChange,
@@ -15,18 +16,18 @@ export enum Tick {
     TupleDriven,
     BatchDriven,
 }
-
+/* eslint-enable no-unused-vars */
 /**
- *
+ * WindowInstance class to represent the window instance of the CSPARQL Window.
  */
 export class WindowInstance {
     open: number;
     close: number;
     has_triggered: boolean;
     /**
-     *
-     * @param open
-     * @param close
+     * Constructor for the WindowInstance class.
+     * @param {number} open - The open time of the window instance of the form {open, close, has_triggered}.
+     * @param {number} close - The close time of the window instance of the form {open, close, has_triggered}.
      */
     constructor(open: number, close: number) {
         this.open = open;
@@ -35,21 +36,24 @@ export class WindowInstance {
     }
 
     /**
-     *
+     * Get the definition of the window instance.
+     * @returns {string} - The definition of the window instance in the form [open, close) Triggered: has_triggered.
      */
     getDefinition() {
         return "[" + this.open + "," + this.close + ")" + " Triggered: " + this.has_triggered;
     }
     /**
-     *
+     * Get the code of the window instance.
+     * @returns {number} - The code of the window instance.
      */
     hasCode() {
         return 0;
     }
 
     /**
-     *
-     * @param other_window
+     * Check if the window instance is the same as the other window instance.
+     * @param {WindowInstance} other_window - The other window instance to be compared.
+     * @returns {boolean} - True if the window instances are the same, else false.
      */
     is_same(other_window: WindowInstance): boolean {
         return this.open == other_window.open && this.close == other_window.close;
@@ -58,15 +62,15 @@ export class WindowInstance {
 
 
 /**
- *
+ * QuadContainer class to represent the container for the quads in the CSPARQL Window.
  */
 export class QuadContainer {
     elements: Set<Quad>;
     last_time_stamp_changed: number;
-    /**
-     *
-     * @param elements
-     * @param ts
+    /** 
+     * Constructor for the QuadContainer class.
+     * @param {Set<Quad>} elements - The set of quads in the container.
+     * @param {number} ts - The timestamp of the last change in the container.
      */
     constructor(elements: Set<Quad>, ts: number) {
         this.elements = elements;
@@ -74,15 +78,17 @@ export class QuadContainer {
     }
 
     /**
-     *
+     * Get the length of the container of the quads.
+     * @returns {number} - The length of the container.
      */
     len() {
         return this.elements.size;
     }
     /**
-     *
-     * @param quad
-     * @param ts
+     * Add the quad to the container of the quads.
+     * @param {Quad} quad - The quad to be added to the container.
+     * @param {number} ts - The timestamp of the quad.
+     * @returns {void} - The function returns nothing.
      */
     add(quad: Quad, ts: number) {
         this.elements.add(quad);
@@ -90,7 +96,8 @@ export class QuadContainer {
     }
 
     /**
-     *
+     * Get the last time the container was changed.
+     * @returns {number} - The last time the container was changed.
      */
     last_time_changed() {
         return this.last_time_stamp_changed;
@@ -113,7 +120,7 @@ export class CSPARQLWindow {
     logger: Logger; // Logger for the CSPARQL Window
     tick: Tick;   // The tick of the window
     emitter: EventEmitter; // The event emitter for the window
-    interval_id: NodeJS.Timeout; // The interval id for the out-of-order processing of the late elements
+    interval_id: ReturnType<typeof setTimeout>; // The interval id for the out-of-order processing of the late elements
     name: string; // The name of the window
     private current_watermark: number; // To track the current watermark of the window
     public late_buffer: Map<number, Set<Quad>>; // Buffer for out-of-order late elements
@@ -121,7 +128,7 @@ export class CSPARQLWindow {
     public pending_triggers: Set<WindowInstance>; // Tracking windows that have pending triggers
     public time_to_trigger_processing_late_elements: number; // The time to trigger the processing of the late elements
     /**
-     *
+     * Constructor for the CSPARQLWindow class.
      * @param {string} name - The name of the CSPARQL Window.
      * @param {number} width - The width of the window.
      * @param {number} slide - The slide of the window.
@@ -129,6 +136,7 @@ export class CSPARQLWindow {
      * @param {Tick} tick - The tick of the window.
      * @param {number} start_time - The start time of the window.
      * @param {number} max_delay - The maximum delay allowed for an observation to be considered in the window used for out-of-order processing.
+     * @param {number} time_to_trigger_processing_late_elements - The time to trigger the processing of the late elements for out-of-order processing.
      */
     constructor(name: string, width: number, slide: number, report: ReportStrategy, tick: Tick, start_time: number, max_delay: number, time_to_trigger_processing_late_elements: number) {
         this.name = name;
@@ -152,6 +160,7 @@ export class CSPARQLWindow {
     /**
      * Get the content of the window at the given timestamp if it exists, else return undefined.
      * @param {number} timestamp - The timestamp for which the content of the window is to be retrieved.
+     * @returns {QuadContainer | undefined} - The content of the window if it exists, else undefined.
      */
     getContent(timestamp: number): QuadContainer | undefined {
         let max_window = null;
@@ -175,6 +184,7 @@ export class CSPARQLWindow {
      * Add the event to the window at the given timestamp and checks if the event is late or not.
      * @param {Quad} e - The event to be added to the window.
      * @param {number} timestamp - The timestamp of the event.
+     * @returns {void} - The function does not return anything.
      */
     add(e: Quad, timestamp: number) {
         console.debug("Window " + this.name + " Received element (" + e + "," + timestamp + ")");
@@ -196,6 +206,7 @@ export class CSPARQLWindow {
     /**
      * Check if the event is late or not based on the timestamp of the event and comparing it to the current time of the window.
      * @param {number} timestamp - The timestamp of the event.
+     * @returns {boolean} - True if the event is late, else false.
      */
     if_event_late(timestamp: number) {
         return this.time > timestamp;
@@ -205,6 +216,7 @@ export class CSPARQLWindow {
      * Buffer the late event for out-of-order processing based on the maximum delay allowed for the events.
      * @param {Quad} e - The event to be buffered.
      * @param {number} timestamp - The timestamp of the event.
+     * @returns {void} - The function does not return anything.
      */
     buffer_late_event(e: Quad, timestamp: number) {
         if (this.time - timestamp > this.max_delay) {
@@ -225,6 +237,7 @@ export class CSPARQLWindow {
     /**
      * Evict the windows that are out of the watermark.
      * @param {Set<WindowInstance>} toEvict - The set of windows to be evicted from the window to be processed by the R2R Operator.
+     * @returns {void} - The function does not return anything.
      */
     evict_windows(toEvict: Set<WindowInstance>) {
         for (const w of toEvict) {
@@ -236,8 +249,10 @@ export class CSPARQLWindow {
     /**
      * Add the window instance to the pending triggers to be emitted.
      * @param {number} t_e - The timestamp of the event to be processed.
+     * @returns {void} - The function does not return anything.
      */
     add_window_instance_to_pending_triggers(t_e: number) {
+        console.log(`Size of the pending triggers before adding the window instance: ${this.pending_triggers.size}`);
         const window_instance = this.get_window_instance(t_e);
         if (this.hasWindowInstance(this.pending_triggers, window_instance)) {
             return;
@@ -245,14 +260,14 @@ export class CSPARQLWindow {
         else {
             this.pending_triggers.add(window_instance);
             console.log(`Size of the pending triggers: ${this.pending_triggers.size}`);
-
         }
     }
 
     /**
-     * Process the event and update the watermark 
+     * Process the event and update the watermark .
      * @param {Quad} e - The event to be processed of the form {subject, predicate, object, graph}.
      * @param {number} t_e - The timestamp of the event.
+     * @returns {Set<WindowInstance>} - The set of windows to be evicted from the window to be processed by the R2R Operator.
      */
     process_event(e: Quad, t_e: number) {
         const toEvict = new Set<WindowInstance>();
@@ -276,6 +291,7 @@ export class CSPARQLWindow {
     /**
      * Get the window instance for the given timestamp.
      * @param {number} t_e - The timestamp for which the window instance is to be retrieved.
+     * @returns {WindowInstance} - The window instance for the given timestamp.
      */
     get_window_instance(t_e: number) {
         const c_sup = Math.ceil((Math.abs(t_e - this.t0) / this.slide)) * this.slide;
@@ -286,6 +302,7 @@ export class CSPARQLWindow {
     /**
      * Updating the watermark. 
      * @param {number} new_time - The new watermark to be set.
+     * @returns {void} - The function does not return anything.
      */
     update_watermark(new_time: number) {
         if (new_time > this.current_watermark) {
@@ -327,8 +344,9 @@ export class CSPARQLWindow {
     }
 
     /**
-     *
-     * @param t_e
+     * Emit the triggers for the windows that are within the watermark.
+     * @param {number} t_e - The timestamp of the event to be processed.
+     * @returns {void} - The function does not return anything.
      */
     emit_on_trigger(t_e: number) {
         this.pending_triggers.forEach((window: WindowInstance) => {
@@ -369,24 +387,27 @@ export class CSPARQLWindow {
     }
 
     /**
-     *
+     * Clear the window interval for the out-of-order processing of the late elements.
+     * @returns {void} - The function does not return anything.
      */
     stop() {
         clearInterval(this.interval_id);
     }
 
     /**
-     *
+     * Get the current time of the window.
+     * @returns {number} - The current time of the window.
      */
     get_current_watermark() {
         return this.current_watermark;
     }
 
     /**
-     *
-     * @param w
-     * @param content
-     * @param timestamp
+     * Compute the report based on the window instance and the content of the window.
+     * @param {WindowInstance} w - The window instance for which the report is to be computed.
+     * @param {QuadContainer} content - The content of the window (which is a QuadContainer).
+     * @param {number} timestamp - The timestamp of the event to be processed.
+     * @returns {boolean} - True if the report is to be computed, else false.
      */
     compute_report(w: WindowInstance, content: QuadContainer, timestamp: number) {
         if (this.report == ReportStrategy.OnWindowClose) {
@@ -399,31 +420,36 @@ export class CSPARQLWindow {
     }
 
     /**
-     *
-     * @param t_e
+     * Scope the window based on the given timestamp.
+     * @param {number} t_e - The timestamp of the event to be processed.
+     * @returns {void} - The function does not return anything.
      */
     scope(t_e: number) {
         const c_sup = Math.ceil((Math.abs(t_e - this.t0) / this.slide)) * this.slide;
         let o_i = c_sup - this.width;
-        do {
+        while (o_i <= t_e) {
             computeWindowIfAbsent(this.active_windows, new WindowInstance(o_i, o_i + this.width), () => new QuadContainer(new Set<Quad>(), 0));
             o_i += this.slide;
-        } while (o_i <= t_e);
+        }
     }
 
 
-    /**
-     *
-     * @param output
-     * @param call_back
+    /* eslint-disable no-unused-vars */
+    /** 
+     * Subscribe to the window based on the output stream and the callback function.
+     * @param {'RStream' | 'IStream' | 'DStream'} output - The output stream to which the window is to be subscribed. The output stream can be one of {'RStream', 'IStream', 'DStream'}.
+     * @param {(QuadContainer) => void} call_back - The callback function to be called when the window emits the triggers.
+     * @returns {void} - The function does not return anything.
      */
     subscribe(output: 'RStream' | 'IStream' | 'DStream', call_back: (data: QuadContainer) => void) {
         this.emitter.on(output, call_back);
     }
+    /* eslint-enable no-unused-vars */
 
     /**
      * Process the late elements that are out of order.
      * The function is currently called periodically based on the slide of the window.
+     * @returns {void} - The function does not return anything.
      */
     process_late_elements() {
         if (this.late_buffer.size == 0) {
@@ -447,6 +473,7 @@ export class CSPARQLWindow {
     /**
      * Set the current time to the given value.
      * @param {number} t - The time to be set.
+     * @returns {void} - The function does not return anything.
      */
     set_current_time(t: number) {
         this.time = t;
@@ -455,6 +482,7 @@ export class CSPARQLWindow {
     /**
      * Set the watermark to the given value.
      * @param {number} t - The watermark to be set.
+     * @returns {void} - The function does not return anything.
      */
     set_current_watermark(t: number) {
         this.current_watermark = t;
@@ -464,6 +492,7 @@ export class CSPARQLWindow {
      *  Get the quads from the active windows based on the given window instance. The function is used to get the content of the window based on the window instance.
      * @param {Map<WindowInstance, QuadContainer>} map - The map of the active windows.
      * @param {WindowInstance} target - The window instance for which the content is to be retrieved.
+     * @returns {QuadContainer | undefined} - The content of the window instance if it exists, else undefined.
      */
     get_quads_from_active_windows(map: Map<WindowInstance, QuadContainer>, target: WindowInstance) {
         for (const [key, value] of map.entries()) {
@@ -475,9 +504,10 @@ export class CSPARQLWindow {
     }
 
     /**
-     *
-     * @param set
-     * @param window
+     * Check if the window instance is present in the set of window instances.
+     * @param {Set<WindowInstance>} set - The set of window instances.
+     * @param {WindowInstance} window - The window instance to be checked.
+     * @returns {boolean} - True if the window instance is present in the set, else false.
      */
     hasWindowInstance(set: Set<WindowInstance>, window: WindowInstance) {
         for (const elem of set) {
@@ -490,10 +520,12 @@ export class CSPARQLWindow {
 
     /**
      * Get a string representation of the CSPARQLWindow definition.
+     * The function is used to get the definition of the CSPARQLWindow in a string format.
+     * @returns {string} - The string representation of the CSPARQLWindow definition.
      */
     getCSPARQLWindowDefinition() {
-        let windowDefinitions = [];
-        for (const [window, quadContainer] of this.active_windows.entries()) {
+        const windowDefinitions = [];
+        for (const [window] of this.active_windows.entries()) {
             windowDefinitions.push(window.getDefinition());
         }
         return `CSPARQLWindow {
@@ -509,26 +541,26 @@ export class CSPARQLWindow {
     }
 
 }
+/* eslint-disable no-unused-vars */
 /**
- *
- * @param map
- * @param key
- * @param mappingFunction
+ * Compute the window if absent based on the given window instance and the mapping function.
+ * @param {Map<WindowInstance, QuadContainer>} map - The map of the active windows.
+ * @param {WindowInstance} window - The window instance of the form {open, close, has_triggered}.
+ * @param {mappingFunction} mappingFunction - The mapping function to be applied to the window instance.
  */
-function computeWindowIfAbsent(map: Map<WindowInstance, QuadContainer>, key: WindowInstance, mappingFunction: (key: WindowInstance) => QuadContainer) {
-    let val = map.get(key);
+function computeWindowIfAbsent(map: Map<WindowInstance, QuadContainer>, window: WindowInstance,
+    mappingFunction: (key: WindowInstance) => QuadContainer) {
     let found = false;
 
     for (const w of map.keys()) {
-        if (w.is_same(key)) {
+        if (w.is_same(window)) {
             found = true;
-            val = map.get(w);
             break;
         }
     }
     if (!found) {
-        val = mappingFunction(key);
-        map.set(key, val);
+        map.set(window, mappingFunction(window));
     }
-    return val;
 }
+
+/* eslint-enable no-unused-vars */

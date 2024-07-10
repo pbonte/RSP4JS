@@ -39,7 +39,6 @@ export class R2ROperator {
         const store = new N3.Store();
         for (const elem of container.elements) {
             store.addQuad(elem);
-
         }
         for (const elem of this.staticData) {
             store.addQuad(elem);

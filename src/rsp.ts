@@ -66,8 +66,11 @@ export class RSPEngine {
     /**
      * Constructor for the RSPEngine class.
      * @param {string} query - The query to be executed by the RSP Engine.
-     * @param {number} max_delay - The maximum delay for the window to be processed in the case of late data arrival and out of order data.
+     * @param {{max_delay: number, time_to_trigger_processing_late_elements: number}} opts - The options for the RSP Engine for processing the data if they are late or out of order.
+     * @param {number} opts.max_delay - The maximum delay for the window to be processed in the case of late data arrival and out of order data.
      * This field is optional and defaults to 0 for no delay expected by the RSP Engine in processing of the data.
+     * @param {number} opts.time_to_trigger_processing_late_elements - The time to trigger the processing of the late elements in the window.
+     * This field is optional and defaults to 60000 milliseconds.
      */
     constructor(query: string, opts?: {
         max_delay?: number

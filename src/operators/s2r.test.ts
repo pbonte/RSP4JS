@@ -1,12 +1,12 @@
-import { EventEmitter } from "events";
 import { DataFactory, Quad } from "n3";
 const { namedNode, literal, defaultGraph, quad } = DataFactory;
 import { CSPARQLWindow, ReportStrategy, Tick, WindowInstance, QuadContainer } from './s2r';
 
 /**
- *
- * @param num_events
- * @param csparqlWindow
+ * Generate data for the test cases.
+ * @param {number} num_events - The number of events to generate.
+ * @param {CSPARQLWindow} csparqlWindow - The CSPARQL Window to which the data is to be added.
+ * @returns {void} - Returns nothing.
  */
 function generate_data(num_events: number, csparqlWindow: CSPARQLWindow) {
     for (let i = 0; i < num_events; i++) {
@@ -50,13 +50,6 @@ describe('CSPARQLWindow', () => {
             namedNode('http://rsp.js/test_object'),
             defaultGraph(),
         );
-        const quad2 = quad(
-            namedNode('https://rsp.js/test_subject_1'),
-            namedNode('http://rsp.js/test_property'),
-            namedNode('http://rsp.js/test_object'),
-            defaultGraph(),
-        );
-
         const csparqlWindow = new CSPARQLWindow(":window1", 10, 2, ReportStrategy.OnWindowClose, Tick.TimeDriven, 0, 60000, 60000);
         csparqlWindow.add(quad1, 0);
     });
@@ -109,8 +102,6 @@ describe('CSPARQLWindow', () => {
 
 
     test('test_content_get', () => {
-        const recevied_data = new Array<QuadContainer>();
-        const received_elementes = new Array<Quad>;
         const csparqlWindow = new CSPARQLWindow(":window1", 10, 2, ReportStrategy.OnWindowClose, Tick.TimeDriven, 0, 60000, 60000);
 
         // generate some data
@@ -357,7 +348,7 @@ describe('CSPARQLWindow get quads from active windows', () => {
     beforeEach(() => {
         quad1 = {} as Quad;
 
-        csparqlWindow = new CSPARQLWindow('testWindow', 10, 5, ReportStrategy.OnWindowClose, Tick.TimeDriven, 0, 5, 1000);
+        csparqlWindow = new CSPARQLWindow('testWindow', 10, 5, ReportStrategy.OnWindowClose, Tick.TimeDriven, 0, 5, 1);
         window1 = new WindowInstance(0, 10);
         quadContainer1 = new QuadContainer(new Set<Quad>([quad1]), 9);
         window2 = new WindowInstance(5, 15);
@@ -391,9 +382,10 @@ describe('CSPARQLWindow get quads from active windows', () => {
 });
 
 /**
- *
- * @param set
- * @param window
+ * Check if the set contains the window instance.
+ * @param {Set<WindowInstance>} set - The set of window instances.
+ * @param {WindowInstance} window - The window instance to check.
+ * @returns {boolean} - True if the window instance is in the set, false otherwise.
  */
 function hasWindowInstance(set: Set<WindowInstance>, window: WindowInstance) {
     for (const elem of set) {

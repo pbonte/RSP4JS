@@ -1,13 +1,13 @@
 import { RDFStream, RSPEngine } from "./rsp";
-import { RSPQLParser } from "./rspql";
 const N3 = require('n3');
 const { DataFactory } = N3;
 const { namedNode, defaultGraph, quad, literal } = DataFactory;
 
 /**
- *
- * @param num_events
- * @param rdfStreams
+ * Generate data for the test.
+ * @param {number} num_events - The number of events to generate.
+ * @param {RDFStream[]} rdfStreams - The RDF Streams to which the data is to be added.
+ * @returns {void} - The data generation.
  */
 function generate_data(num_events: number, rdfStreams: RDFStream[]) {
     for (let i = 0; i < num_events; i++) {
@@ -23,9 +23,10 @@ function generate_data(num_events: number, rdfStreams: RDFStream[]) {
     }
 }
 /**
- *
- * @param num_events
- * @param rdfStream
+ * Generate data for the test.
+ * @param {number} num_events - The number of events to generate.
+ * @param {RDFStream} rdfStream - The RDF Stream to which the data is to be added.
+ * @returns {Promise<void>} - The promise of the data generation.
  */
 async function generate_data2(num_events: number, rdfStream: RDFStream) {
     for (let i = 0; i < num_events; i++) {
@@ -51,7 +52,6 @@ test('rsp_consumer_test', async () => {
     const stream = rspEngine.getStream("https://rsp.js/stream1");
     const emitter = rspEngine.register();
     const results = new Array<string>();
-    let count = 0;
     // @ts-ignore
     emitter.on('RStream', (object) => {
         console.log(`received result ${object.bindings.toString()}`);
@@ -239,9 +239,6 @@ test('test_out_of_order_event_processing', async () => {
         generate_data(10, [stream]);
     }
 
-    // @ts-ignore
-    const sleep = (ms) => new Promise(r => setTimeout(r, ms));
-
     if (stream) {
         await generate_data2(10, stream);
     }
@@ -355,7 +352,6 @@ test('test ooo event processing with varying delay settings', async () => {
         stream.add(event, 9);
         stream.add(event, 7);
     }
-
     const sleep = (ms: any) => new Promise(r => setTimeout(r, ms));
     await sleep(2000);
 
@@ -398,13 +394,11 @@ describe.skip('test the rsp engine with out of order processing with various dat
 
     test('testing RSP Engine with 4Hz data frequency', async () => {
         jest.setTimeout(100000);
-        const parser = new RSPQLParser();
-        const parsed_query = parser.parse(query);
         const rsp_engine = new RSPEngine(query, {
             max_delay: 1000,
             time_to_trigger_processing_late_elements: 60000
         });
-        let emitter = rsp_engine.register();
+        const emitter = rsp_engine.register();
         const results = new Array<string>();
 
         const stream_x = await rsp_engine.getStream(location_one);
@@ -428,6 +422,13 @@ describe.skip('test the rsp engine with out of order processing with various dat
 
 });
 
+/**
+ * Generate dummy data for the test.
+ * @param {number} number_of_events - The number of events to generate.
+ * @param {RDFStream[]} rdf_streams - The RDF Streams to which the data is to be added.
+ * @param {number} frequency - The frequency of the data to be generated.
+ * @returns {Promise<void>} - The promise of the dummy data generation.
+ */
 async function generate_dummy_data(number_of_events: number, rdf_streams: RDFStream[], frequency: number) {
     let events_generated = 0;
     const sleep_interval = 1000 / frequency;
@@ -460,6 +461,11 @@ async function generate_dummy_data(number_of_events: number, rdf_streams: RDFStr
     }
 }
 
+/**
+ * Sleep function.
+ * @param {number} ms - The time to sleep in milliseconds.
+ * @returns {Promise<any>} - The promise of the sleep function.
+ */
 function sleep(ms: number) {
     return new Promise(resolve => setTimeout(resolve, ms));
 }
