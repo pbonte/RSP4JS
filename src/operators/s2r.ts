@@ -320,7 +320,6 @@ export class CSPARQLWindow {
      *  Evict the windows that are out of the watermark and trigger the windows that are within the watermark.
      */
     evict_and_trigger_on_watermark() {
-
         // Evict windows that are out of the watermark and should be evicted.
         const to_evict = new Set<WindowInstance>();
         // Checking all of the currently active windows.
@@ -373,7 +372,7 @@ export class CSPARQLWindow {
                         }
                         else {
                             window.has_triggered = true;
-                            this.logger.info(`Window ${window.getDefinition()} triggers with Content: " + ${content}`, `CSPARQLWindow`);
+                            this.logger.info(`Window ${window.getDefinition()} triggers with ContentSize: " + ${content.len()}`, `CSPARQLWindow`);
                             this.emitter.emit('RStream', content);
                         }
                     }
@@ -383,7 +382,7 @@ export class CSPARQLWindow {
                     console.error("Window [" + window.open + "," + window.close + ") should not trigger");
                 }
             }
-        })
+        });
     }
 
     /**
