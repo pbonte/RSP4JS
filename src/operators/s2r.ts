@@ -58,6 +58,10 @@ export class WindowInstance {
     is_same(other_window: WindowInstance): boolean {
         return this.open == other_window.open && this.close == other_window.close;
     }
+
+    set_triggered() {
+        this.has_triggered = true;
+    }
 }
 
 
@@ -188,18 +192,15 @@ export class CSPARQLWindow {
      */
     add(e: Quad, timestamp: number) {
         console.debug("Window " + this.name + " Received element (" + e + "," + timestamp + ")");
-        this.time = timestamp;
-        const t_e = timestamp;
+        if (this.if_event_late(timestamp)) {
+            console.log("Event is late at time " + timestamp);
+            this.buffer_late_event(e, this.time);
+            return;
+        }
+        const to_evict = this.process_event(e, timestamp);
         if (timestamp > this.time) {
             this.time = timestamp;
         }
-
-        if (this.if_event_late(t_e)) {
-            console.log("Event is late at time " + t_e);
-            this.buffer_late_event(e, t_e);
-            return;
-        }
-        const to_evict = this.process_event(e, t_e);
         this.evict_windows(to_evict);
     }
 
@@ -312,7 +313,6 @@ export class CSPARQLWindow {
         }
         else {
             console.error("Watermark is not increasing");
-            this.logger.info(`Watermark is not increasing ${this.current_watermark} and time ${this.time}`, `CSPARQLWindow`);
         }
     }
 
@@ -373,7 +373,7 @@ export class CSPARQLWindow {
                         else {
                             if (content.len() > 0) {
                                 this.logger.info(`Window ${window.getDefinition()} triggers with ContentSize: " + ${content.len()}`, `CSPARQLWindow`);
-                                window.has_triggered = true;
+                                window.set_triggered();
                                 this.emitter.emit('RStream', content);
                             }
                             else {
