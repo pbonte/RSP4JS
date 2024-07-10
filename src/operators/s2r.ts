@@ -371,9 +371,14 @@ export class CSPARQLWindow {
                             this.logger.info(`Window ${window.getDefinition()} is already triggered so not triggering it again.`, `CSPARQLWindow`);
                         }
                         else {
-                            window.has_triggered = true;
-                            this.logger.info(`Window ${window.getDefinition()} triggers with ContentSize: " + ${content.len()}`, `CSPARQLWindow`);
-                            this.emitter.emit('RStream', content);
+                            if (content.len() > 0) {
+                                this.logger.info(`Window ${window.getDefinition()} triggers with ContentSize: " + ${content.len()}`, `CSPARQLWindow`);
+                                window.has_triggered = true;
+                                this.emitter.emit('RStream', content);
+                            }
+                            else {
+                                this.logger.info(`Window ${window.getDefinition()} has no data.`, `CSPARQLWindow`);
+                            }
                         }
                     }
                     this.pending_triggers.delete(window);
