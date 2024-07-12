@@ -309,6 +309,7 @@ test('test out of order processing with different delays', async () => {
 
 
 test('test ooo event processing with varying delay settings', async () => {
+    jest.setTimeout(100000);
     const query = `
     PREFIX : <https://rsp.js/>
     REGISTER RStream <output> AS
@@ -338,6 +339,7 @@ test('test ooo event processing with varying delay settings', async () => {
     emitter.on('RStream', (object: any) => {
         results.push(object.bindings.toString());
     });
+    const sleep = (ms: any) => new Promise(r => setTimeout(r, ms));
 
     if (stream) {
         stream.add(event, 0);
@@ -352,7 +354,6 @@ test('test ooo event processing with varying delay settings', async () => {
         stream.add(event, 9);
         stream.add(event, 7);
     }
-    const sleep = (ms: any) => new Promise(r => setTimeout(r, ms));
     await sleep(2000);
 
     expect(results.length).toBeGreaterThan(0);

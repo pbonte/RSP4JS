@@ -191,7 +191,7 @@ export class CSPARQLWindow {
      * @returns {void} - The function does not return anything.
      */
     add(e: Quad, timestamp: number) {
-        console.debug("Window " + this.name + " Received element (" + e + "," + timestamp + ")");
+        console.debug(`Adding [" + ${e} + "] at time : ${timestamp} and watermark ${this.current_watermark}`);
         if (this.if_event_late(timestamp)) {
             console.log("Event is late at time " + timestamp);
             this.buffer_late_event(e, this.time);
@@ -229,6 +229,8 @@ export class CSPARQLWindow {
             console.warn("Late element [" + e + "] with timestamp [" + timestamp + "] is being buffered for out of order processing");
             if (!this.late_buffer.has(timestamp)) {
                 this.late_buffer.set(timestamp, new Set<Quad>());
+                console.log(`Size of the late buffer from the buffer_late_event method: ${this.late_buffer.size}`);
+                
             }
             this.late_buffer.get(timestamp)?.add(e);
             this.logger.info(`Size of the late buffer from the buffer_late_event method: ${this.late_buffer.size}`, `CSPARQLWindow`);
@@ -253,6 +255,7 @@ export class CSPARQLWindow {
      * @returns {void} - The function does not return anything.
      */
     add_window_instance_to_pending_triggers(t_e: number) {
+        this.logger.info(`Pending Triggers are : ${JSON.stringify(this.pending_triggers)}`, `CSPARQLWindow`)
         console.log(`Size of the pending triggers before adding the window instance: ${this.pending_triggers.size}`);
         const window_instance = this.get_window_instance(t_e);
         if (this.hasWindowInstance(this.pending_triggers, window_instance)) {
@@ -260,7 +263,6 @@ export class CSPARQLWindow {
         }
         else {
             this.pending_triggers.add(window_instance);
-            console.log(`Size of the pending triggers: ${this.pending_triggers.size}`);
         }
     }
 
@@ -283,7 +285,6 @@ export class CSPARQLWindow {
                 toEvict.add(w);
             }
         }
-        this.logger.info(`Event [" + ${e} + "] with timestamp [" + ${t_e} + "] is being processed`, `CSPARQLWindow`);
         this.update_watermark(t_e);
         this.add_window_instance_to_pending_triggers(t_e);
         return toEvict;
@@ -349,8 +350,9 @@ export class CSPARQLWindow {
      */
     emit_on_trigger(t_e: number) {
         this.pending_triggers.forEach((window: WindowInstance) => {
+            this.logger.info(`Emitting triggers for the window ${window.getDefinition()}`, `CSPARQLWindow`);
             const content = this.get_quads_from_active_windows(this.active_windows, window);
-            if (content) {
+            if (content && content.len() > 0) {
                 let should_emit = false;
                 if (this.report == ReportStrategy.OnWindowClose) {
                     if (window.close <= t_e) {
@@ -365,7 +367,7 @@ export class CSPARQLWindow {
                 }
 
                 if (should_emit) {
-                    this.time = t_e;
+                    // this.time = t_e;
                     if (!window.has_triggered || this.report == ReportStrategy.OnContentChange) {
                         if (window.has_triggered) {
                             this.logger.info(`Window ${window.getDefinition()} is already triggered so not triggering it again.`, `CSPARQLWindow`);
@@ -373,6 +375,7 @@ export class CSPARQLWindow {
                         else {
                             if (content.len() > 0) {
                                 this.logger.info(`Window ${window.getDefinition()} triggers with ContentSize: " + ${content.len()}`, `CSPARQLWindow`);
+                                
                                 window.set_triggered();
                                 this.emitter.emit('RStream', content);
                             }
