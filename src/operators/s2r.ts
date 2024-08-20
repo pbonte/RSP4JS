@@ -125,7 +125,6 @@ export class CSPARQLWindow {
     report: ReportStrategy; // The report strategy for the window
     logger: Logger; // Logger for the CSPARQL Window
     tick: Tick;   // The tick of the window
-    
     emitter: EventEmitter; // The event emitter for the window
     name: string; // The name of the window
     private current_watermark: number; // To track the current watermark of the window
@@ -210,6 +209,7 @@ export class CSPARQLWindow {
      * @returns {boolean} - True if the event is late, else false.
      */
     if_event_late(timestamp: number) {
+        fs.appendFileSync('time_log_late.txt', `${timestamp - this.time}\n`);
         return this.time > timestamp;
     }
 
