@@ -1,8 +1,10 @@
 import { EventEmitter } from "events";
+import fs from 'fs';
 // @ts-ignore
 import { Quad } from 'n3';
 import { Logger, LogLevel, LogDestination } from "../util/Logger";
 import * as LOG_CONFIG from "../config/log_config.json";
+const ss = require('simple-statistics');
 
 /* eslint-disable no-unused-vars */
 export enum ReportStrategy {
@@ -123,14 +125,13 @@ export class CSPARQLWindow {
     report: ReportStrategy; // The report strategy for the window
     logger: Logger; // Logger for the CSPARQL Window
     tick: Tick;   // The tick of the window
+    
     emitter: EventEmitter; // The event emitter for the window
-    interval_id: ReturnType<typeof setTimeout>; // The interval id for the out-of-order processing of the late elements
     name: string; // The name of the window
     private current_watermark: number; // To track the current watermark of the window
     public late_buffer: Map<number, Set<Quad>>; // Buffer for out-of-order late elements
     public max_delay: number; // The maximum delay allowed for a observation to be considered in the window
     public pending_triggers: Set<WindowInstance>; // Tracking windows that have pending triggers
-    public time_to_trigger_processing_late_elements: number; // The time to trigger the processing of the late elements
     /**
      * Constructor for the CSPARQLWindow class.
      * @param {string} name - The name of the CSPARQL Window.
@@ -140,15 +141,13 @@ export class CSPARQLWindow {
      * @param {Tick} tick - The tick of the window.
      * @param {number} start_time - The start time of the window.
      * @param {number} max_delay - The maximum delay allowed for an observation to be considered in the window used for out-of-order processing.
-     * @param {number} time_to_trigger_processing_late_elements - The time to trigger the processing of the late elements for out-of-order processing.
      */
-    constructor(name: string, width: number, slide: number, report: ReportStrategy, tick: Tick, start_time: number, max_delay: number, time_to_trigger_processing_late_elements: number) {
+    constructor(name: string, width: number, slide: number, report: ReportStrategy, tick: Tick, start_time: number, max_delay: number) {
         this.name = name;
         this.width = width;
         this.slide = slide;
         this.report = report;
         this.tick = tick;
-        this.time_to_trigger_processing_late_elements = time_to_trigger_processing_late_elements;
         const log_level: LogLevel = LogLevel[LOG_CONFIG.log_level as keyof typeof LogLevel];
         this.logger = new Logger(log_level, LOG_CONFIG.classes_to_log, LOG_CONFIG.destination as unknown as LogDestination);
         this.time = start_time;
@@ -159,7 +158,6 @@ export class CSPARQLWindow {
         this.max_delay = max_delay;
         this.pending_triggers = new Set<WindowInstance>();
         this.late_buffer = new Map<number, Set<Quad>>();
-        this.interval_id = setInterval(() => { this.process_late_elements() }, time_to_trigger_processing_late_elements);
     }
     /**
      * Get the content of the window at the given timestamp if it exists, else return undefined.
@@ -191,6 +189,8 @@ export class CSPARQLWindow {
      * @returns {void} - The function does not return anything.
      */
     add(e: Quad, timestamp: number) {
+        let processing_time = Date.now();
+        fs.appendFileSync('time_log.txt', `${processing_time - timestamp}\n`);
         console.debug(`Adding [" + ${e} + "] at time : ${timestamp} and watermark ${this.current_watermark}`);
         if (this.if_event_late(timestamp)) {
             console.log("Event is late at time " + timestamp);
@@ -230,7 +230,7 @@ export class CSPARQLWindow {
             if (!this.late_buffer.has(timestamp)) {
                 this.late_buffer.set(timestamp, new Set<Quad>());
                 console.log(`Size of the late buffer from the buffer_late_event method: ${this.late_buffer.size}`);
-                
+
             }
             this.late_buffer.get(timestamp)?.add(e);
             this.logger.info(`Size of the late buffer from the buffer_late_event method: ${this.late_buffer.size}`, `CSPARQLWindow`);
@@ -375,7 +375,7 @@ export class CSPARQLWindow {
                         else {
                             if (content.len() > 0) {
                                 this.logger.info(`Window ${window.getDefinition()} triggers with ContentSize: " + ${content.len()}`, `CSPARQLWindow`);
-                                
+
                                 window.set_triggered();
                                 this.emitter.emit('RStream', content);
                             }
@@ -391,14 +391,6 @@ export class CSPARQLWindow {
                 }
             }
         });
-    }
-
-    /**
-     * Clear the window interval for the out-of-order processing of the late elements.
-     * @returns {void} - The function does not return anything.
-     */
-    stop() {
-        clearInterval(this.interval_id);
     }
 
     /**
@@ -463,7 +455,8 @@ export class CSPARQLWindow {
             return;
         } else {
             this.logger.info(`Processing late elements for the window with the late_buffer size ${this.late_buffer.size}`, `CSPARQLWindow`)
-            this.late_buffer.forEach((elements: Set<Quad>, timestamp: number) => {
+            const sortedLateBuffer = Array.from(this.late_buffer.entries()).sort(([timestampA], [timestampB]) => timestampA - timestampB);
+            sortedLateBuffer.forEach(([timestamp, elements]) => {
                 elements.forEach((element: Quad) => {
                     const to_evict = new Set<WindowInstance>();
                     this.process_event(element, timestamp);
@@ -484,6 +477,10 @@ export class CSPARQLWindow {
      */
     set_current_time(t: number) {
         this.time = t;
+    }
+
+    set_max_delay(delay: number) {
+        this.max_delay = delay;
     }
 
     /**
@@ -569,5 +566,8 @@ function computeWindowIfAbsent(map: Map<WindowInstance, QuadContainer>, window: 
         map.set(window, mappingFunction(window));
     }
 }
-
 /* eslint-enable no-unused-vars */
+
+export function gammaOperator(shape: number, scale: number): number {
+    return ss.gamma(shape, scale);
+}

@@ -360,7 +360,7 @@ test('test ooo event processing with varying delay settings', async () => {
     console.log(results);
 })
 
-describe.skip('test the rsp engine with out of order processing with various data frequency', () => {
+describe('test the rsp engine with out of order processing with various data frequency', () => {
     const location_one = "http://n078-03.wall1.ilabt.imec.be:3000/pod1/acc-x/";
     const location_two = "http://n078-03.wall1.ilabt.imec.be:3000/pod1/acc-y/";
     const location_three = "http://n078-03.wall1.ilabt.imec.be:3000/pod1/acc-z/";

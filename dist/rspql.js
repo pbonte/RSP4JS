@@ -1,32 +1,58 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.RSPQLParser = exports.ParsedQuery = void 0;
+/**
+ * Parser for RSP-QL queries to extract the SPARQL query and the window definitions.
+ */
 class ParsedQuery {
+    /**
+     * Constructor to initialize the ParsedQuery object with default values.
+     */
     constructor() {
         this.sparql = "Select * WHERE{?s ?p ?o}";
         // @ts-ignore
         this.r2s = { operator: "RStream", name: "undefined" };
         this.s2r = new Array();
     }
+    /**
+     * Set the SPARQL query for the ParsedQuery object.
+     * @param {string} sparql - The SPARQL query to be set.
+     */
     set_sparql(sparql) {
         this.sparql = sparql;
     }
+    /**
+     * Set the R2S operator for the ParsedQuery object.
+     * @param {R2S} r2s - The R2S operator to be set.
+     */
     set_r2s(r2s) {
         this.r2s = r2s;
     }
+    /**
+     * Add a S2R window definition to the ParsedQuery object.
+     * @param {WindowDefinition} s2r - The window definition to be added.
+     */
     add_s2r(s2r) {
         this.s2r.push(s2r);
     }
 }
 exports.ParsedQuery = ParsedQuery;
+/**
+ * RSP-QL Parser Class to parse the RSP-QL query and extract the SPARQL query and the window definitions.
+ */
 class RSPQLParser {
+    /**
+     * Parse the RSP-QL query to extract the SPARQL query and the window definitions.
+     * @param {string} query - The RSP-QL query to be parsed.
+     * @returns {ParsedQuery} - The parsed query object containing the SPARQL query and the window definitions.
+     */
     parse(query) {
-        let parsed = new ParsedQuery();
-        let split = query.split(/\r?\n/);
-        let sparqlLines = new Array();
-        let prefixMapper = new Map();
+        const parsed = new ParsedQuery();
+        const split = query.split(/\r?\n/);
+        const sparqlLines = new Array();
+        const prefixMapper = new Map();
         split.forEach((line) => {
-            let trimmed_line = line.trim();
+            const trimmed_line = line.trim();
             //R2S
             if (trimmed_line.startsWith("REGISTER")) {
                 const regexp = /REGISTER +([^ ]+) +<([^>]+)> AS/g;
@@ -67,12 +93,18 @@ class RSPQLParser {
         parsed.sparql = sparqlLines.join("\n");
         return parsed;
     }
+    /**
+     * Unwrap the prefixed IRI to the full IRI using the prefix mapper.
+     * @param {string} prefixedIri - The prefixed IRI to be unwrapped.
+     * @param {Map<string, string>} mapper - The prefix mapper to be used for unwrapping.
+     * @returns {string} - The unwrapped full IRI.
+     */
     unwrap(prefixedIri, mapper) {
         if (prefixedIri.trim().startsWith("<")) {
             return prefixedIri.trim().slice(1, -1);
         }
-        let split = prefixedIri.trim().split(":");
-        let iri = split[0];
+        const split = prefixedIri.trim().split(":");
+        const iri = split[0];
         if (mapper.has(iri)) {
             return mapper.get(iri) + split[1];
         }

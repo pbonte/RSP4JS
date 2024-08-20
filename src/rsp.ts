@@ -91,7 +91,7 @@ export class RSPEngine {
         const parser = new RSPQLParser();
         const parsed_query = parser.parse(query);
         parsed_query.s2r.forEach((window: WindowDefinition) => {
-            const windowImpl = new CSPARQLWindow(window.window_name, window.width, window.slide, ReportStrategy.OnWindowClose, Tick.TimeDriven, 0, this.max_delay, this.time_to_trigger_processing_late_elements);
+            const windowImpl = new CSPARQLWindow(window.window_name, window.width, window.slide, ReportStrategy.OnWindowClose, Tick.TimeDriven, 0, this.max_delay);
             this.windows.push(windowImpl);
             const stream = new RDFStream(window.stream_name, windowImpl);
             this.streams.set(window.stream_name, stream);
@@ -126,6 +126,7 @@ export class RSPEngine {
                         this.logger.info(`Starting Window Query Processing for the window ${window.getCSPARQLWindowDefinition()} with window size ${data.len()}`, `RSPEngine`);
                         console.log(`Starting Window Query Processing for the window time ${data.last_time_changed()} with window size ${data.len()}`, `RSPEngine`);
                         const bindingsStream = await this.r2r.execute(data);
+                        this.logger.info(`Ended the execution of the R2R Operator for the window ${window.getCSPARQLWindowDefinition()} with window size ${data.len()}`, `RSPEngine`);
                         bindingsStream.on('data', (binding: any) => {
                             const object_with_timestamp: binding_with_timestamp = {
                                 bindings: binding,

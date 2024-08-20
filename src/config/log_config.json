@@ -3,7 +3,8 @@
     "classes_to_log": [
         "RDFStream",
         "RSPEngine",
-        "CSPARQLWindow"
+        "CSPARQLWindow",
+        "R2ROperator"
     ],
     "destination": "FILE"
 }

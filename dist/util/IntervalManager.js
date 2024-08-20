@@ -1,20 +1,17 @@
-import { CSPARQLWindow } from "../operators/s2r";
-
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.IntervalManager = void 0;
 /**
  * Class to manage the intervals for the CSPARQL Window.
  */
-export class IntervalManager {
-
-    public window_instance: CSPARQLWindow;
-
+class IntervalManager {
     /**
      * Constructor for the IntervalManager class.
-     * @param {CSPARQLWindow} window_instance - The CSPARQL Window instance for which the interval is to be managed. 
+     * @param {CSPARQLWindow} window_instance - The CSPARQL Window instance for which the interval is to be managed.
      */
-    constructor(window_instance: CSPARQLWindow) {
+    constructor(window_instance) {
         this.window_instance = window_instance;
     }
-
     /**
      * Set the interval for the CSPARQL Window.
      */
@@ -28,3 +25,4 @@ export class IntervalManager {
         }
     }
 }
+exports.IntervalManager = IntervalManager;
