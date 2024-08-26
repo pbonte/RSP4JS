@@ -268,7 +268,7 @@ test('test setting the max delay for out of order events', async () => {
 test('test out of order processing with different delays', async () => {
     const query = `
     PREFIX : <https://rsp.js/>
-    REGISTER RStream <output> AS
+    REGISTER RStream <output> ASic
     SELECT *
     FROM NAMED WINDOW :w1 ON STREAM :stream1 [RANGE 10 STEP 2]
     WHERE{

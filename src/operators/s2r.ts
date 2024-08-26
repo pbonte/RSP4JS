@@ -190,7 +190,7 @@ export class CSPARQLWindow {
     add(event: Quad, timestamp: number) {
         console.debug(`Adding [" + ${event} + "] at time : ${timestamp} and watermark ${this.current_watermark}`);
         let t_e = timestamp;
-        let to_evict = new Set<WindowInstance>();        
+        let to_evict = new Set<WindowInstance>();
         if (this.time > t_e) {
             // Out of order event handling
             console.error(`The event is late and has arrived out of order at time ${timestamp}`);
@@ -230,7 +230,7 @@ export class CSPARQLWindow {
                 to_evict.add(w);
             }
         }
-        if (t_e > this.time){
+        if (t_e > this.time) {
             this.time = timestamp;
         }
         this.update_watermark(t_e);
@@ -248,7 +248,7 @@ export class CSPARQLWindow {
      */
 
     trigger_window_content(watermark: number) {
-        let max_window = null;
+        let max_window: WindowInstance | null = null;
         let max_time = 0;
 
         this.active_windows.forEach((value: QuadContainer, window: WindowInstance) => {
@@ -262,12 +262,16 @@ export class CSPARQLWindow {
 
         if (max_window) {
             if (this.tick == Tick.TimeDriven) {
-                console.log(max_window);
-                console.log(max_time);
-                console.log(watermark);
-                
-                if (watermark >= max_time + this.max_delay) {
-                    this.emitter.emit(`RStream`, this.active_windows.get(max_window));
+                if (watermark >= max_time) {
+                    setTimeout(() => {
+                        if (watermark >= max_time + this.max_delay) {
+                            if (max_window) {
+                                this.emitter.emit('RStream', this.active_windows.get(max_window));
+                                this.active_windows.delete(max_window);
+                            }
+                        }
+                    }, this.max_delay);
+
                 }
                 else {
                     console.error(`Window is out of the watermark and will not trigger`);
