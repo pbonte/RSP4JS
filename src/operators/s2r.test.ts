@@ -1,6 +1,6 @@
 import { DataFactory, Quad } from "n3";
 const { namedNode, literal, defaultGraph, quad } = DataFactory;
-import { CSPARQLWindow, ReportStrategy, Tick, WindowInstance, QuadContainer, gammaOperator } from './s2r';
+import { CSPARQLWindow, ReportStrategy, Tick, WindowInstance, QuadContainer } from './s2r';
 
 /**
  * Generate data for the test cases.
@@ -152,20 +152,6 @@ describe('CSPARQLWindow OOO', () => {
         window.add(quad1, 1);
         window.set_current_time(8);
         expect(window.if_event_late(2)).toBe(true);
-    });
-
-
-    test('should add element to the late buffer', () => {
-        window.add(quad1, 5);
-        window.set_current_time(8);
-        // Add late element
-        window.buffer_late_event(quad2, 3);
-        // rejects if it is outside the allowed max_delay window
-        expect(window.late_buffer.size).toBe(0);
-        // Adds another late element
-        window.buffer_late_event(quad2, 7);
-        // accepts as it is inside the allowed max_delay window
-        expect(window.late_buffer.size).toBe(1);
     });
 
     test('should buffer late elements', () => {
@@ -389,14 +375,3 @@ function hasWindowInstance(set: Set<WindowInstance>, window: WindowInstance) {
     }
     return false;
 }
-
-
-describe('Gamma Operator', () => {
-    it('should return the correct gamma value', () => {
-        const shape = 4;
-        const scale = 3;
-        const gamma = gammaOperator(shape, scale);
-        console.log(gamma);
-
-    });
-});

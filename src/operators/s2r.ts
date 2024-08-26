@@ -4,7 +4,6 @@ import fs from 'fs';
 import { Quad } from 'n3';
 import { Logger, LogLevel, LogDestination } from "../util/Logger";
 import * as LOG_CONFIG from "../config/log_config.json";
-const ss = require('simple-statistics');
 
 /* eslint-disable no-unused-vars */
 export enum ReportStrategy {
@@ -93,12 +92,12 @@ export class QuadContainer {
     /**
      * Add the quad to the container of the quads.
      * @param {Quad} quad - The quad to be added to the container.
-     * @param {number} ts - The timestamp of the quad.
+     * @param {number} quad_timestamp - The timestamp of the quad.
      * @returns {void} - The function returns nothing.
      */
-    add(quad: Quad, ts: number) {
+    add(quad: Quad, quad_timestamp: number) {
         this.elements.add(quad);
-        this.last_time_stamp_changed = ts;
+        this.last_time_stamp_changed = quad_timestamp;
     }
 
     /**
@@ -187,55 +186,96 @@ export class CSPARQLWindow {
      * @param {number} timestamp - The timestamp of the event.
      * @returns {void} - The function does not return anything.
      */
-    add(e: Quad, timestamp: number) {
-        let processing_time = Date.now();
-        fs.appendFileSync('time_log.txt', `${processing_time - timestamp}\n`);
-        console.debug(`Adding [" + ${e} + "] at time : ${timestamp} and watermark ${this.current_watermark}`);
-        if (this.if_event_late(timestamp)) {
-            console.log("Event is late at time " + timestamp);
-            this.buffer_late_event(e, this.time);
-            return;
+
+    add(event: Quad, timestamp: number) {
+        console.debug(`Adding [" + ${event} + "] at time : ${timestamp} and watermark ${this.current_watermark}`);
+        let t_e = timestamp;
+        let to_evict = new Set<WindowInstance>();        
+        if (this.time > t_e) {
+            // Out of order event handling
+            console.error(`The event is late and has arrived out of order at time ${timestamp}`);
+            if (t_e - this.time > this.max_delay) {
+                // Discard the event if it is too late to be considered in the window based on a simple static heuristic pre-decided
+                // when the CSPARQL Window was initialized.
+                console.error("Late element [" + event + "] with timestamp [" + timestamp + "] is out of the allowed delay [" + this.max_delay + "]");
+            }
+            else if (t_e - this.time <= this.max_delay) {
+                // The event is late but within the allowed delay, so we will add it to the specific window instance.
+                for (let w of this.active_windows.keys()) {
+                    if (w.open <= t_e && t_e < w.close) {
+                        let temp_window = this.active_windows.get(w);
+                        if (temp_window) {
+                            temp_window.add(event, t_e);
+                        }
+                    }
+                    else if (t_e >= w.close) {
+                        to_evict.add(w);
+                    }
+                }
+            }
         }
-        const to_evict = this.process_event(e, timestamp);
-        if (timestamp > this.time) {
+        // In order event handling
+        this.scope(t_e);
+        for (let w of this.active_windows.keys()) {
+            console.debug(`Processing Window ${w.getDefinition()} for the event ${event} at time ${timestamp}`);
+            if (w.open <= t_e && t_e < w.close) {
+                console.debug(`Adding the event ${event} to the window ${w.getDefinition()} at time ${timestamp}`);
+                let window_to_add = this.active_windows.get(w);
+                if (window_to_add) {
+                    window_to_add.add(event, t_e);
+                }
+            }
+            else if (t_e >= w.close + this.max_delay && !w.has_triggered) {
+                console.debug(`Scheduled to evict the window ${w.getDefinition()} at time ${timestamp}`);
+                to_evict.add(w);
+            }
+        }
+        if (t_e > this.time){
             this.time = timestamp;
         }
-        this.evict_windows(to_evict);
+        this.update_watermark(t_e);
+        this.trigger_window_content(this.current_watermark);
     }
 
-    /**
-     * Check if the event is late or not based on the timestamp of the event and comparing it to the current time of the window.
-     * @param {number} timestamp - The timestamp of the event.
-     * @returns {boolean} - True if the event is late, else false.
-     */
     if_event_late(timestamp: number) {
-        fs.appendFileSync('time_log_late.txt', `${timestamp - this.time}\n`);
         return this.time > timestamp;
     }
 
     /**
-     * Buffer the late event for out-of-order processing based on the maximum delay allowed for the events.
-     * @param {Quad} e - The event to be buffered.
-     * @param {number} timestamp - The timestamp of the event.
+     * Trigger the window content based on the current watermark.
+     * @param {number} watermark - The current watermark which needs to be processed.
      * @returns {void} - The function does not return anything.
      */
-    buffer_late_event(e: Quad, timestamp: number) {
-        if (this.time - timestamp > this.max_delay) {
-            this.logger.info(`Late element [" + ${e} + "] with timestamp [" + ${timestamp} + "] is out of the allowed delay [" + ${this.max_delay} + "]`, `CSPARQLWindow`);
-            console.error("Late element [" + e + "] with timestamp [" + timestamp + "] is out of the allowed delay [" + this.max_delay + "]");
-        }
-        else {
-            this.logger.info(`Late element [" + ${e} + "] with timestamp [" + ${timestamp} + "] is being buffered for out of order processing`, `CSPARQLWindow`);
-            console.warn("Late element [" + e + "] with timestamp [" + timestamp + "] is being buffered for out of order processing");
-            if (!this.late_buffer.has(timestamp)) {
-                this.late_buffer.set(timestamp, new Set<Quad>());
-                console.log(`Size of the late buffer from the buffer_late_event method: ${this.late_buffer.size}`);
 
+    trigger_window_content(watermark: number) {
+        let max_window = null;
+        let max_time = 0;
+
+        this.active_windows.forEach((value: QuadContainer, window: WindowInstance) => {
+            if (this.compute_report(window, value, watermark)) {
+                if (window.close > max_time) {
+                    max_time = window.close;
+                    max_window = window;
+                }
             }
-            this.late_buffer.get(timestamp)?.add(e);
-            this.logger.info(`Size of the late buffer from the buffer_late_event method: ${this.late_buffer.size}`, `CSPARQLWindow`);
+        });
+
+        if (max_window) {
+            if (this.tick == Tick.TimeDriven) {
+                console.log(max_window);
+                console.log(max_time);
+                console.log(watermark);
+                
+                if (watermark >= max_time + this.max_delay) {
+                    this.emitter.emit(`RStream`, this.active_windows.get(max_window));
+                }
+                else {
+                    console.error(`Window is out of the watermark and will not trigger`);
+                }
+            }
         }
     }
+
 
     /**
      * Evict the windows that are out of the watermark.
@@ -310,7 +350,6 @@ export class CSPARQLWindow {
         if (new_time > this.current_watermark) {
             this.current_watermark = new_time;
             this.logger.info(`Watermark is increasing ${this.current_watermark} and time ${this.time}`, `CSPARQLWindow`);
-            this.evict_and_trigger_on_watermark();
         }
         else {
             console.error("Watermark is not increasing");
@@ -403,6 +442,7 @@ export class CSPARQLWindow {
 
     /**
      * Compute the report based on the window instance and the content of the window.
+     * Max Delay is added to trigger the report computation only after waiting for a certain time.
      * @param {WindowInstance} w - The window instance for which the report is to be computed.
      * @param {QuadContainer} content - The content of the window (which is a QuadContainer).
      * @param {number} timestamp - The timestamp of the event to be processed.
@@ -567,7 +607,3 @@ function computeWindowIfAbsent(map: Map<WindowInstance, QuadContainer>, window: 
     }
 }
 /* eslint-enable no-unused-vars */
-
-export function gammaOperator(shape: number, scale: number): number {
-    return ss.gamma(shape, scale);
-}
