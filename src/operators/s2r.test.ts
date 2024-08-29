@@ -1,6 +1,6 @@
 import { DataFactory, Quad } from "n3";
 const { namedNode, literal, defaultGraph, quad } = DataFactory;
-import { CSPARQLWindow, ReportStrategy, Tick, WindowInstance, QuadContainer } from './s2r';
+import { CSPARQLWindow, ReportStrategy, Tick, WindowInstance, QuadContainer, computeWindowIfAbsent } from './s2r';
 
 /**
  * Generate data for the test cases.
@@ -154,13 +154,6 @@ describe('CSPARQLWindow OOO', () => {
         expect(window.if_event_late(2)).toBe(true);
     });
 
-    test('should buffer late elements', () => {
-        window.add(quad1, 1);
-        window.add(quad2, 0);
-        expect(window.late_buffer.size).toBe(1);
-        expect(window.late_buffer.get(0)?.has(quad2)).toBe(true);
-    });
-
     test('should evict windows based on watermark', () => {
         window.add(quad1, 1);
         window.set_current_time(12);
@@ -184,15 +177,6 @@ describe('CSPARQLWindow OOO', () => {
         const windowInstance2 = window.get_window_instance(6);
         expect(windowInstance2.open).toBe(0);
         expect(windowInstance2.close).toBe(10);
-    });
-
-    test('should process late elements', () => {
-        window.add(quad1, 6);
-        window.add(quad2, 4);  // Late element
-        window.process_late_elements();
-        const quadContainer = window.getContent(0);
-        console.log(quadContainer);
-        expect(quadContainer?.len()).toBe(1);
     });
 
     test('should update current time when adding a new element', () => {
@@ -360,6 +344,82 @@ describe('CSPARQLWindow get quads from active windows', () => {
         expect(hasWindowInstance(csparqlWindow.pending_triggers, window_instance)).toBe(true);
     });
 });
+
+
+describe(`CSPARQLWindow computing window instances`, () => {
+    const existing_windows: Map<WindowInstance, QuadContainer> = new Map<WindowInstance, QuadContainer>();
+    const window1 = new WindowInstance(-10, 0);
+    const window2 = new WindowInstance(0, 10);
+    const window3 = new WindowInstance(5, 15);
+    const window4 = new WindowInstance(10, 20);
+    const window5 = new WindowInstance(15, 25);
+
+    existing_windows.set(window1, new QuadContainer(new Set<Quad>(), 0));
+    existing_windows.set(window2, new QuadContainer(new Set<Quad>(), 1));
+    existing_windows.set(window3, new QuadContainer(new Set<Quad>(), 2));
+    existing_windows.set(window4, new QuadContainer(new Set<Quad>(), 3));
+
+    let csparqlWindow: CSPARQLWindow;
+    let quad1 = quad(
+        namedNode('https://rsp.js/test_subject_0'),
+        namedNode('http://rsp.js/test_property'),
+        namedNode('http://rsp.js/test_object'),
+        defaultGraph(),
+    );
+    csparqlWindow = new CSPARQLWindow('testWindow', 10, 5, ReportStrategy.OnWindowClose, Tick.TimeDriven, 0, 5);
+    csparqlWindow.active_windows = existing_windows;
+
+    it('should return the correct window instance for the given time', () => {
+        const window_instance = csparqlWindow.get_window_instance(0);
+        console.log(window_instance);
+        console.log(window1);
+        expect(window_instance).toEqual(window1);
+    });
+
+    it('should_return_true_if_window_already_exists', () => {
+        let if_window_is_computed = computeWindowIfAbsent(csparqlWindow.active_windows, window4, () => new QuadContainer(new Set<Quad>(), 0));
+        expect(if_window_is_computed).toBe(true);
+    });
+
+    it('should_return_false_if_window_doesnt_exist', () => {
+        let if_window_is_computed = computeWindowIfAbsent(csparqlWindow.active_windows, window5, () => new QuadContainer(new Set<Quad>(), 0));
+        expect(if_window_is_computed).toBe(false);
+    });
+
+    it('scope_event', () => {
+        csparqlWindow.scope(0);
+        console.log(csparqlWindow.active_windows.size);
+        csparqlWindow.add(quad1, 0);
+        csparqlWindow.add(quad1, 1);
+        csparqlWindow.add(quad1, 2);
+        csparqlWindow.add(quad1, 3);
+        csparqlWindow.add(quad1, 4);
+        csparqlWindow.add(quad1, 5);
+        csparqlWindow.add(quad1, 6);
+        csparqlWindow.add(quad1, 7);
+        csparqlWindow.add(quad1, 8);
+        csparqlWindow.add(quad1, 9);
+        csparqlWindow.add(quad1, 10);
+        console.log(csparqlWindow.active_windows.size);
+        csparqlWindow.add(quad1, 11);
+        csparqlWindow.add(quad1, 12);
+        csparqlWindow.add(quad1, 13);
+        csparqlWindow.add(quad1, 14);
+        csparqlWindow.add(quad1, 15);
+        csparqlWindow.add(quad1, 16);
+        csparqlWindow.add(quad1, 17);
+        csparqlWindow.add(quad1, 18);
+        console.log(csparqlWindow.active_windows.size);
+        csparqlWindow.add(quad1, 19);
+        csparqlWindow.add(quad1, 20);
+        csparqlWindow.scope(1000);
+        console.log(csparqlWindow.active_windows.size);
+        console.log(csparqlWindow.active_windows);
+        csparqlWindow.scope(2000);
+        console.log(csparqlWindow.active_windows);
+    });
+
+})
 
 /**
  * Check if the set contains the window instance.

@@ -1,7 +1,6 @@
 import { EventEmitter } from "events";
 // @ts-ignore
 import { Quad } from 'n3';
-import fs from 'fs';
 import { Logger, LogLevel, LogDestination } from "../util/Logger";
 import * as LOG_CONFIG from "../config/log_config.json";
 
@@ -126,11 +125,7 @@ export class CSPARQLWindow {
     tick: Tick;   // The tick of the window
     emitter: EventEmitter; // The event emitter for the window
     name: string; // The name of the window
-    private event_counter: number; // The event counter for the window
-    private initialization_time: number; // The initialization time of the window
-    private throughput_interval: number; // The throughput interval for the window
     private current_watermark: number; // To track the current watermark of the window
-    public late_buffer: Map<number, Set<Quad>>; // Buffer for out-of-order late elements
     public max_delay: number; // The maximum delay allowed for a observation to be considered in the window
     public pending_triggers: Set<WindowInstance>; // Tracking windows that have pending triggers
     /**
@@ -144,7 +139,6 @@ export class CSPARQLWindow {
      * @param {number} max_delay - The maximum delay allowed for an observation to be considered in the window used for out-of-order processing.
      */
     constructor(name: string, width: number, slide: number, report: ReportStrategy, tick: Tick, start_time: number, max_delay: number) {
-        this.startThroughputLogging();
         this.name = name;
         this.width = width;
         this.slide = slide;
@@ -159,20 +153,6 @@ export class CSPARQLWindow {
         this.emitter = new EventEmitter();
         this.max_delay = max_delay;
         this.pending_triggers = new Set<WindowInstance>();
-        this.late_buffer = new Map<number, Set<Quad>>();
-        this.event_counter = 0;
-        this.initialization_time = Date.now();
-        this.throughput_interval = 10000; // logging the throughput every second for the window
-
-    }
-
-    startThroughputLogging() {
-        setInterval(() => {
-            const current_time = Date.now();
-            const elapsed_time = (current_time - this.initialization_time) / 1000;
-            const throughput = this.event_counter / elapsed_time;
-            // this.logger.info(`throughput : ${throughput.toFixed(2)} quads/sec`, `CSPARQLWindow`);
-        }, this.throughput_interval);
     }
 
     /**
@@ -206,15 +186,14 @@ export class CSPARQLWindow {
      */
 
     add(event: Quad, timestamp: number) {
-        this.event_counter++;
         this.logger.info(`adding_event`, `CSPARQLWindow`);
         console.debug(`Adding [" + ${event} + "] at time : ${timestamp} and watermark ${this.current_watermark}`);
-        let event_latency = Date.now() - timestamp;
-        this.logger.info(`Event Latency : ${event_latency}`, `CSPARQLWindow`);
         let t_e = timestamp;
         let to_evict = new Set<WindowInstance>();
         if (this.time > t_e) {
             this.logger.info(`out_of_order_event_received`, `CSPARQLWindow`);
+            let event_latency = this.time - timestamp;
+            this.logger.info(`Event Latency : ${event_latency}`, `CSPARQLWindow`);
             // Out of order event handling
             console.error(`The event is late and has arrived out of order at time ${timestamp}`);
             if (t_e - this.time > this.max_delay) {
@@ -239,6 +218,10 @@ export class CSPARQLWindow {
                 }
             }
         }
+
+        if (t_e > this.time) {
+            this.time = timestamp;
+        }
         // In order event handling
         this.scope(t_e);
         for (let w of this.active_windows.keys()) {
@@ -254,9 +237,6 @@ export class CSPARQLWindow {
                 console.debug(`Scheduled to evict the window ${w.getDefinition()} at time ${timestamp}`);
                 to_evict.add(w);
             }
-        }
-        if (t_e > this.time) {
-            this.time = timestamp;
         }
         this.update_watermark(t_e);
         this.trigger_window_content(this.current_watermark);
@@ -290,14 +270,19 @@ export class CSPARQLWindow {
                 if (watermark >= max_time) {
                     setTimeout(() => {
                         if (watermark >= max_time + this.max_delay) {
+                            this.logger.info(`Watermark ${watermark} `, `CSPARQLWindow`);
                             if (max_window) {
                                 this.emitter.emit('RStream', this.active_windows.get(max_window));
                                 this.active_windows.delete(max_window);
                             }
                         }
+                        else {
+                            this.logger.info(`Window will not trigger.`, `CSPARQLWindow`);
+                        }
                     }, this.max_delay);
                 }
                 else {
+                    this.logger.info(`Window ${max_window} is out of the watermark and will not trigger.`, `CSPARQLWindow`);
                     console.error(`Window is out of the watermark and will not trigger`);
                 }
             }
@@ -492,8 +477,11 @@ export class CSPARQLWindow {
      * @returns {void} - The function does not return anything.
      */
     scope(t_e: number) {
+        // const c_sup = Math.ceil((Math.abs(t_e - this.time) / this.slide)) * this.slide;
         const c_sup = Math.ceil((Math.abs(t_e - this.t0) / this.slide)) * this.slide;
         let o_i = c_sup - this.width;
+        console.log(`Scope the window for the event at time ${t_e}`);
+        console.log(`${c_sup} - ${this.width} = ${o_i}`);
         while (o_i <= t_e) {
             computeWindowIfAbsent(this.active_windows, new WindowInstance(o_i, o_i + this.width), () => new QuadContainer(new Set<Quad>(), 0));
             o_i += this.slide;
@@ -512,31 +500,6 @@ export class CSPARQLWindow {
         this.emitter.on(output, call_back);
     }
     /* eslint-enable no-unused-vars */
-
-    /**
-     * Process the late elements that are out of order.
-     * The function is currently called periodically based on the slide of the window.
-     * @returns {void} - The function does not return anything.
-     */
-    process_late_elements() {
-        if (this.late_buffer.size == 0) {
-            return;
-        } else {
-            this.logger.info(`Processing late elements for the window with the late_buffer size ${this.late_buffer.size}`, `CSPARQLWindow`)
-            const sortedLateBuffer = Array.from(this.late_buffer.entries()).sort(([timestampA], [timestampB]) => timestampA - timestampB);
-            sortedLateBuffer.forEach(([timestamp, elements]) => {
-                elements.forEach((element: Quad) => {
-                    const to_evict = new Set<WindowInstance>();
-                    this.process_event(element, timestamp);
-                    for (const w of to_evict) {
-                        console.debug("Evicting Late [" + w.open + "," + w.close + ")");
-                        this.active_windows.delete(w);
-                    }
-                });
-            });
-            this.late_buffer.clear();
-        }
-    }
 
     /**
      * Set the current time to the given value.
@@ -620,7 +583,7 @@ export class CSPARQLWindow {
  * @param {WindowInstance} window - The window instance of the form {open, close, has_triggered}.
  * @param {mappingFunction} mappingFunction - The mapping function to be applied to the window instance.
  */
-function computeWindowIfAbsent(map: Map<WindowInstance, QuadContainer>, window: WindowInstance,
+export function computeWindowIfAbsent(map: Map<WindowInstance, QuadContainer>, window: WindowInstance,
     mappingFunction: (key: WindowInstance) => QuadContainer) {
     let found = false;
 
@@ -633,5 +596,7 @@ function computeWindowIfAbsent(map: Map<WindowInstance, QuadContainer>, window: 
     if (!found) {
         map.set(window, mappingFunction(window));
     }
+
+    return found;
 }
 /* eslint-enable no-unused-vars */
