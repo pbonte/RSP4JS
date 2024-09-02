@@ -190,7 +190,7 @@ export class CSPARQLWindow {
         console.debug(`Adding [" + ${event} + "] at time : ${timestamp} and watermark ${this.current_watermark}`);
         let t_e = timestamp;
         let to_evict = new Set<WindowInstance>();
-        if (this.time > t_e) {
+        if (this.time > timestamp) {
             this.logger.info(`out_of_order_event_received`, `CSPARQLWindow`);
             let event_latency = this.time - timestamp;
             this.logger.info(`Event Latency : ${event_latency}`, `CSPARQLWindow`);
@@ -217,29 +217,28 @@ export class CSPARQLWindow {
                     }
                 }
             }
-        }
-
-        if (t_e > this.time) {
-            this.time = timestamp;
-        }
-        // In order event handling
-        this.scope(t_e);
-        for (let w of this.active_windows.keys()) {
-            console.debug(`Processing Window ${w.getDefinition()} for the event ${event} at time ${timestamp}`);
-            if (w.open <= t_e && t_e < w.close) {
-                console.debug(`Adding the event ${event} to the window ${w.getDefinition()} at time ${timestamp}`);
-                let window_to_add = this.active_windows.get(w);
-                if (window_to_add) {
-                    window_to_add.add(event, t_e);
+        } else if (timestamp >= this.time) {
+            this.logger.info(`in_order_event_received`, `CSPARQLWindow`);
+            // In order event handling
+            this.scope(t_e);
+            for (let w of this.active_windows.keys()) {
+                console.debug(`Processing Window ${w.getDefinition()} for the event ${event} at time ${timestamp}`);
+                if (w.open <= t_e && t_e < w.close) {
+                    console.debug(`Adding the event ${event} to the window ${w.getDefinition()} at time ${timestamp}`);
+                    let window_to_add = this.active_windows.get(w);
+                    if (window_to_add) {
+                        window_to_add.add(event, t_e);
+                    }
+                }
+                else if (t_e >= w.close + this.max_delay && !w.has_triggered) {
+                    console.debug(`Scheduled to evict the window ${w.getDefinition()} at time ${timestamp}`);
+                    to_evict.add(w);
                 }
             }
-            else if (t_e >= w.close + this.max_delay && !w.has_triggered) {
-                console.debug(`Scheduled to evict the window ${w.getDefinition()} at time ${timestamp}`);
-                to_evict.add(w);
-            }
+            this.update_watermark(t_e);
+            this.trigger_window_content(this.current_watermark);
+            this.time = timestamp;
         }
-        this.update_watermark(t_e);
-        this.trigger_window_content(this.current_watermark);
     }
 
     if_event_late(timestamp: number) {
@@ -477,7 +476,6 @@ export class CSPARQLWindow {
      * @returns {void} - The function does not return anything.
      */
     scope(t_e: number) {
-        // const c_sup = Math.ceil((Math.abs(t_e - this.time) / this.slide)) * this.slide;
         const c_sup = Math.ceil((Math.abs(t_e - this.t0) / this.slide)) * this.slide;
         let o_i = c_sup - this.width;
         console.log(`Scope the window for the event at time ${t_e}`);
