@@ -316,7 +316,7 @@ test('test ooo event processing with varying delay settings', async () => {
     PREFIX : <https://rsp.js/>
     REGISTER RStream <output> AS
     SELECT *
-    FROM NAMED WINDOW :w1 ON STREAM :stream1 [RANGE 10 STEP 2]
+    FROM NAMED WINDOW :w1 ON STREAM :stream1 [RANGE 10 STEP 5]
     WHERE{
         WINDOW :w1 { ?s ?p ?o}
     }

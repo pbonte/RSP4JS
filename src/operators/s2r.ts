@@ -186,6 +186,7 @@ export class CSPARQLWindow {
      */
 
     add(event: Quad, timestamp: number) {
+        this.logger.info(`Current Time: ${this.time} Current Watermark: ${this.current_watermark}`, `CSPARQLWindow`);
         this.logger.info(`adding_event`, `CSPARQLWindow`);
         console.debug(`Adding [" + ${event} + "] at time : ${timestamp} and watermark ${this.current_watermark}`);
         let t_e = timestamp;
@@ -209,6 +210,7 @@ export class CSPARQLWindow {
                     if (w.open <= t_e && t_e < w.close) {
                         let temp_window = this.active_windows.get(w);
                         if (temp_window) {
+                            this.logger.info(`Adding the event ${event} to the window ${w.getDefinition()} at time ${timestamp}`, `CSPARQLWindow`);
                             temp_window.add(event, t_e);
                         }
                     }
@@ -217,7 +219,9 @@ export class CSPARQLWindow {
                     }
                 }
             }
-        } else if (timestamp >= this.time) {
+            this.time = timestamp;
+        } else if (timestamp > this.time) {
+            this.time = timestamp
             this.logger.info(`in_order_event_received`, `CSPARQLWindow`);
             // In order event handling
             this.scope(t_e);
@@ -236,8 +240,7 @@ export class CSPARQLWindow {
                 }
             }
             this.update_watermark(t_e);
-            this.trigger_window_content(this.current_watermark);
-            this.time = timestamp;
+            this.trigger_window_content(this.current_watermark, timestamp);
         }
     }
 
@@ -251,7 +254,7 @@ export class CSPARQLWindow {
      * @returns {void} - The function does not return anything.
      */
 
-    trigger_window_content(watermark: number) {
+    trigger_window_content(watermark: number, timestamp: number) {
         let max_window: WindowInstance | null = null;
         let max_time = 0;
 
@@ -266,19 +269,14 @@ export class CSPARQLWindow {
 
         if (max_window) {
             if (this.tick == Tick.TimeDriven) {
-                if (watermark >= max_time) {
-                    setTimeout(() => {
-                        if (watermark >= max_time + this.max_delay) {
-                            this.logger.info(`Watermark ${watermark} `, `CSPARQLWindow`);
-                            if (max_window) {
-                                this.emitter.emit('RStream', this.active_windows.get(max_window));
-                                this.active_windows.delete(max_window);
-                            }
-                        }
-                        else {
-                            this.logger.info(`Window will not trigger.`, `CSPARQLWindow`);
-                        }
-                    }, this.max_delay);
+                if (watermark >= this.time + this.max_delay) {
+                    this.time = timestamp;
+                    this.logger.info(`Watermark ${watermark} `, `CSPARQLWindow`);
+                    if (max_window) {
+                        this.emitter.emit('RStream', this.active_windows.get(max_window));
+                        this.logger.info(`Window triggers`, `CSPARQLWindow`);
+                        this.active_windows.delete(max_window);
+                    }
                 }
                 else {
                     this.logger.info(`Window ${max_window} is out of the watermark and will not trigger.`, `CSPARQLWindow`);
@@ -287,72 +285,6 @@ export class CSPARQLWindow {
             }
         }
     }
-
-
-    /**
-     * Evict the windows that are out of the watermark.
-     * @param {Set<WindowInstance>} toEvict - The set of windows to be evicted from the window to be processed by the R2R Operator.
-     * @returns {void} - The function does not return anything.
-     */
-    evict_windows(toEvict: Set<WindowInstance>) {
-        for (const w of toEvict) {
-            console.debug("Evicting [" + w.open + "," + w.close + ")");
-            this.active_windows.delete(w);
-        }
-    }
-
-    /**
-     * Add the window instance to the pending triggers to be emitted.
-     * @param {number} t_e - The timestamp of the event to be processed.
-     * @returns {void} - The function does not return anything.
-     */
-    add_window_instance_to_pending_triggers(t_e: number) {
-        this.logger.info(`Pending Triggers are : ${JSON.stringify(this.pending_triggers)}`, `CSPARQLWindow`)
-        console.log(`Size of the pending triggers before adding the window instance: ${this.pending_triggers.size}`);
-        const window_instance = this.get_window_instance(t_e);
-        if (this.hasWindowInstance(this.pending_triggers, window_instance)) {
-            return;
-        }
-        else {
-            this.pending_triggers.add(window_instance);
-        }
-    }
-
-    /**
-     * Process the event and update the watermark .
-     * @param {Quad} e - The event to be processed of the form {subject, predicate, object, graph}.
-     * @param {number} t_e - The timestamp of the event.
-     * @returns {Set<WindowInstance>} - The set of windows to be evicted from the window to be processed by the R2R Operator.
-     */
-    process_event(e: Quad, t_e: number) {
-        const toEvict = new Set<WindowInstance>();
-        this.scope(t_e);
-        for (const w of this.active_windows.keys()) {
-            if (w.open <= t_e && t_e < w.close) {
-                const temp_window = this.active_windows.get(w);
-                if (temp_window) {
-                    temp_window.add(e, t_e);
-                }
-            } else if (t_e >= w.close) {
-                toEvict.add(w);
-            }
-        }
-        this.update_watermark(t_e);
-        this.add_window_instance_to_pending_triggers(t_e);
-        return toEvict;
-    }
-
-    /**
-     * Get the window instance for the given timestamp.
-     * @param {number} t_e - The timestamp for which the window instance is to be retrieved.
-     * @returns {WindowInstance} - The window instance for the given timestamp.
-     */
-    get_window_instance(t_e: number) {
-        const c_sup = Math.ceil((Math.abs(t_e - this.t0) / this.slide)) * this.slide;
-        const o_i = c_sup - this.width;
-        return new WindowInstance(o_i, o_i + this.width)
-    }
-
     /**
      * Updating the watermark. 
      * @param {number} new_time - The new watermark to be set.
@@ -361,87 +293,11 @@ export class CSPARQLWindow {
     update_watermark(new_time: number) {
         if (new_time > this.current_watermark) {
             this.current_watermark = new_time;
-            // this.logger.info(`Watermark is increasing ${this.current_watermark} and time ${this.time}`, `CSPARQLWindow`);
+            this.logger.info(`Watermark is increasing ${this.current_watermark} and time ${this.time}`, `CSPARQLWindow`);
         }
         else {
             console.error("Watermark is not increasing");
         }
-    }
-
-    /** 
-     *  Evict the windows that are out of the watermark and trigger the windows that are within the watermark.
-     */
-    evict_and_trigger_on_watermark() {
-        // Evict windows that are out of the watermark and should be evicted.
-        const to_evict = new Set<WindowInstance>();
-        // Checking all of the currently active windows.
-        this.active_windows.forEach((value: QuadContainer, window: WindowInstance) => {
-            // If the window is out of the watermark, add it to the eviction list, i.e if it is less than or 
-            //  equal to the current watermark minus the maximum delay.
-            if (window.close <= this.current_watermark - this.max_delay) {
-                // Add the window to the eviction list.
-                to_evict.add(window);
-            }
-        });
-        this.logger.info(`Current watermark: ${this.current_watermark} to emit triggers for the window`, `CSPARQLWindow`);
-        // Emit triggers for the windows that are within the watermark, if any. 
-        this.emit_on_trigger(this.current_watermark);
-
-        // Evict the windows that are out of the watermark.
-        for (const window of to_evict) {
-            this.active_windows.delete(window);
-            console.debug(`Watermark evicting window ${window.getDefinition()}`)
-        }
-    }
-
-    /**
-     * Emit the triggers for the windows that are within the watermark.
-     * @param {number} t_e - The timestamp of the event to be processed.
-     * @returns {void} - The function does not return anything.
-     */
-    emit_on_trigger(t_e: number) {
-        this.pending_triggers.forEach((window: WindowInstance) => {
-            this.logger.info(`Emitting triggers for the window ${window.getDefinition()}`, `CSPARQLWindow`);
-            const content = this.get_quads_from_active_windows(this.active_windows, window);
-            if (content && content.len() > 0) {
-                let should_emit = false;
-                if (this.report == ReportStrategy.OnWindowClose) {
-                    if (window.close <= t_e) {
-                        should_emit = true;
-                    }
-                }
-                else if (this.report == ReportStrategy.OnContentChange) {
-                    should_emit = true;
-                }
-                else {
-                    should_emit = false;
-                }
-
-                if (should_emit) {
-                    // this.time = t_e;
-                    if (!window.has_triggered || this.report == ReportStrategy.OnContentChange) {
-                        if (window.has_triggered) {
-                            this.logger.info(`Window ${window.getDefinition()} is already triggered so not triggering it again.`, `CSPARQLWindow`);
-                        }
-                        else {
-                            if (content.len() > 0) {
-                                this.logger.info(`Window ${window.getDefinition()} triggers with ContentSize: " + ${content.len()}`, `CSPARQLWindow`);
-
-                                window.set_triggered();
-                                this.emitter.emit('RStream', content);
-                            }
-                            else {
-                                this.logger.info(`Window ${window.getDefinition()} has no data.`, `CSPARQLWindow`);
-                            }
-                        }
-                    }
-                    this.pending_triggers.delete(window);
-                }
-                else {
-                    console.error("Window [" + window.open + "," + window.close + ") should not trigger");
-                }
-            }
-        });
     }
 
     /**
@@ -519,36 +375,6 @@ export class CSPARQLWindow {
      */
     set_current_watermark(t: number) {
         this.current_watermark = t;
-    }
-
-    /**
-     *  Get the quads from the active windows based on the given window instance. The function is used to get the content of the window based on the window instance.
-     * @param {Map<WindowInstance, QuadContainer>} map - The map of the active windows.
-     * @param {WindowInstance} target - The window instance for which the content is to be retrieved.
-     * @returns {QuadContainer | undefined} - The content of the window instance if it exists, else undefined.
-     */
-    get_quads_from_active_windows(map: Map<WindowInstance, QuadContainer>, target: WindowInstance) {
-        for (const [key, value] of map.entries()) {
-            if (key.open === target.open && key.close === target.close && key.has_triggered === target.has_triggered) {
-                return value;
-            }
-        }
-        return undefined;
-    }
-
-    /**
-     * Check if the window instance is present in the set of window instances.
-     * @param {Set<WindowInstance>} set - The set of window instances.
-     * @param {WindowInstance} window - The window instance to be checked.
-     * @returns {boolean} - True if the window instance is present in the set, else false.
-     */
-    hasWindowInstance(set: Set<WindowInstance>, window: WindowInstance) {
-        for (const elem of set) {
-            if (elem.open === window.open && elem.close === window.close) {
-                return true;
-            }
-        }
-        return false;
     }
 
     /**
