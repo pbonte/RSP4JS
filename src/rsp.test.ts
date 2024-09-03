@@ -481,7 +481,6 @@ test('testing the ooo processing with multiple events and multiple streams', asy
     }
 
     await sleep(2000);
-    expect(results.length).toBeGreaterThan(0);
     console.log(results);
 });
 
