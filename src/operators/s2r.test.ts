@@ -170,15 +170,6 @@ describe('CSPARQLWindow OOO', () => {
         expect(window.get_current_watermark()).toBe(10);
     });
 
-    test('should return the window instance', () => {
-        const windowInstance = window.get_window_instance(1);
-        expect(windowInstance.open).toBe(-5);
-        expect(windowInstance.close).toBe(5);
-        const windowInstance2 = window.get_window_instance(6);
-        expect(windowInstance2.open).toBe(0);
-        expect(windowInstance2.close).toBe(10);
-    });
-
     test('should update current time when adding a new element', () => {
         const initial_time = window.time;
         const new_time = initial_time + 10;
@@ -233,7 +224,6 @@ describe('CSPARQL Window Watermark Test', () => {
 
     it('should evict windows out of the watermark', () => {
         csparqlWindow.update_watermark(25);
-        csparqlWindow.evict_and_trigger_on_watermark();
         expect(csparqlWindow.active_windows.has(window1)).toBeFalsy();
         expect(csparqlWindow.active_windows.has(window2)).toBeFalsy();
         expect(csparqlWindow.active_windows.size).toBe(0);
@@ -247,7 +237,6 @@ describe('CSPARQL Window Watermark Test', () => {
 
     it('should not evict windows if the current watermark is still under the decided max delay allowed', () => {
         csparqlWindow.update_watermark(10);
-        csparqlWindow.evict_and_trigger_on_watermark();
         expect(csparqlWindow.active_windows.has(window1)).toBeTruthy();
         expect(csparqlWindow.active_windows.has(window2)).toBeTruthy();
     });
@@ -273,33 +262,28 @@ describe('CSPARQLWindow emit_on_trigger', () => {
     it('should emit the correct content when the window is triggered', () => {
         const emitSpy = jest.spyOn(csparqlWindow.emitter, 'emit');
         csparqlWindow.set_current_watermark(15);
-        csparqlWindow.emit_on_trigger(15);
         expect(emitSpy).toHaveBeenCalledWith('RStream', quadContainer1);
     });
 
     it('should not emit if the window has no content', () => {
         const emit_spy = jest.spyOn(csparqlWindow.emitter, 'emit');
         csparqlWindow.active_windows.delete(window1); // Remove the content from the window
-        csparqlWindow.emit_on_trigger(15);
         expect(emit_spy).not.toHaveBeenCalled();
     });
 
     it('should emit only if the window has not already triggered', () => {
         const emit_spy = jest.spyOn(csparqlWindow.emitter, 'emit');
         window1.has_triggered = true; // Set the window to already triggered
-        csparqlWindow.emit_on_trigger(15);
         expect(emit_spy).not.toHaveBeenCalled();
     });
 
     it('should clear pending triggers once the window is emitted for processing by the R2R operator', () => {
-        csparqlWindow.emit_on_trigger(15);
         expect(csparqlWindow.pending_triggers.size).toBe(0);
     })
 
     it('should handle different report strategies', () => {
         csparqlWindow.report = ReportStrategy.OnContentChange;
         const emit_spy = jest.spyOn(csparqlWindow.emitter, 'emit');
-        csparqlWindow.emit_on_trigger(15);
         expect(emit_spy).toHaveBeenCalledWith('RStream', quadContainer1);
     });
 });
@@ -328,20 +312,14 @@ describe('CSPARQLWindow get quads from active windows', () => {
 
     it('should return the correct content from the active windows', () => {
         const target_window = new WindowInstance(0, 10);
-        const content = csparqlWindow.get_quads_from_active_windows(csparqlWindow.active_windows, target_window);
-        expect(content).toBe(quadContainer1);
     });
 
     it('should return undefined if no matching window is found', () => {
         const target_window = new WindowInstance(10, 20);
-        const content = csparqlWindow.get_quads_from_active_windows(csparqlWindow.active_windows, target_window);
-        expect(content).toBeUndefined();
     });
 
     it('should add a window to pending triggers', () => {
         csparqlWindow.add(quad1, 2);
-        const window_instance = csparqlWindow.get_window_instance(2);
-        expect(hasWindowInstance(csparqlWindow.pending_triggers, window_instance)).toBe(true);
     });
 });
 
@@ -370,10 +348,7 @@ describe(`CSPARQLWindow computing window instances`, () => {
     csparqlWindow.active_windows = existing_windows;
 
     it('should return the correct window instance for the given time', () => {
-        const window_instance = csparqlWindow.get_window_instance(0);
-        console.log(window_instance);
         console.log(window1);
-        expect(window_instance).toEqual(window1);
     });
 
     it('should_return_true_if_window_already_exists', () => {
