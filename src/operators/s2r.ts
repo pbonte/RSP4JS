@@ -126,7 +126,7 @@ export class CSPARQLWindow {
     emitter: EventEmitter; // The event emitter for the window
     name: string; // The name of the window
     private current_watermark: number; // To track the current watermark of the window
-    public max_delay: number; // The maximum delay allowed for a observation to be considered in the window
+    public  max_delay: number; // The maximum delay allowed for a observation to be considered in the window
     public pending_triggers: Set<WindowInstance>; // Tracking windows that have pending triggers
     /**
      * Constructor for the CSPARQLWindow class.
@@ -255,7 +255,7 @@ export class CSPARQLWindow {
      */
 
     trigger_window_content(watermark: number, timestamp: number) {
-        let max_window: WindowInstance | null = null;
+        let max_window: WindowInstance | null = null as WindowInstance | null;
         let max_time = 0;
 
         this.active_windows.forEach((value: QuadContainer, window: WindowInstance) => {
@@ -269,7 +269,7 @@ export class CSPARQLWindow {
 
         if (max_window) {
             if (this.tick == Tick.TimeDriven) {
-                if (watermark >= this.time + this.max_delay) {
+                if (watermark >= max_window.close + this.max_delay || (timestamp >= max_window.close + this.max_delay)) {
                     this.time = timestamp;
                     this.logger.info(`Watermark ${watermark} `, `CSPARQLWindow`);
                     if (max_window) {

@@ -277,7 +277,7 @@ test('test out of order processing with different delays', async () => {
     `;
 
     const rsp_engine = new RSPEngine(query, {
-        max_delay: 0
+        max_delay: 4
     });
     const stream = rsp_engine.getStream("https://rsp.js/stream1");
     const emitter = rsp_engine.register();
@@ -353,7 +353,10 @@ test('test ooo event processing with varying delay settings', async () => {
         stream.add(event, 7);
         stream.add(event, 8);
         stream.add(event, 9);
+        stream.add(event, 9)
         stream.add(event, 7);
+        stream.add(event, 10);
+        stream.add(event, 11);
     }
     await sleep(2000);
 
@@ -423,6 +426,65 @@ describe('test the rsp engine with out of order processing with various data fre
 
 });
 
+
+test('testing the ooo processing with multiple events and multiple streams', async () => {
+    const query = `
+    PREFIX : <https://rsp.js/>
+    REGISTER RStream <output> AS
+    SELECT *
+    FROM NAMED WINDOW :w1 ON STREAM :stream1 [RANGE 10 STEP 2]
+    FROM NAMED WINDOW :w2 ON STREAM :stream2 [RANGE 10 STEP 2]
+    FROM NAMED WINDOW :w3 ON STREAM :stream3 [RANGE 10 STEP 2]
+    WHERE{
+        WINDOW :w1 { ?s ?p ?o}
+    }
+    `;
+
+    const rsp_engine = new RSPEngine(query, {
+        max_delay: 2,
+    });
+
+    const stream1 = rsp_engine.getStream("https://rsp.js/stream1");
+    const stream2 = rsp_engine.getStream("https://rsp.js/stream2");
+    const stream3 = rsp_engine.getStream("https://rsp.js/stream3");
+
+    const emitter = rsp_engine.register();
+    const results = new Array<string>();
+
+    const event = quad(
+        namedNode(`https://rsp.js/test_subject`),
+        namedNode('http://rsp.js/test_property'),
+        namedNode('http://rsp.js/test_object'),
+        defaultGraph()
+    )
+
+    emitter.on('RStream', (object: any) => {
+        results.push(object.bindings.toString());
+    });
+
+    const sleep = (ms: any) => new Promise(r => setTimeout(r, ms));
+
+    if (stream1 && stream2 && stream3) {
+        stream1.add(event, 0);
+        stream2.add(event, 3);
+        stream3.add(event, 1);
+        stream1.add(event, 2);
+        stream2.add(event, 4);
+        stream3.add(event, 5);
+        stream1.add(event, 6);
+        stream1.add(event, 3)
+        stream2.add(event, 7);
+        stream3.add(event, 8);
+        stream1.add(event, 9);
+        stream2.add(event, 10);
+        stream3.add(event, 11);
+    }
+
+    await sleep(2000);
+    expect(results.length).toBeGreaterThan(0);
+    console.log(results);
+});
+
 /**
  * Generate dummy data for the test.
  * @param {number} number_of_events - The number of events to generate.
@@ -470,3 +532,4 @@ async function generate_dummy_data(number_of_events: number, rdf_streams: RDFStr
 function sleep(ms: number) {
     return new Promise(resolve => setTimeout(resolve, ms));
 }
+
