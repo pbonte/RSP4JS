@@ -104,7 +104,7 @@ export class RSPEngine {
             window.subscribe("RStream", async (data: QuadContainer) => {
                 if (data) {
                     if (data.len() > 0) {
-                        this.logger.info(`Received window content for time ${data.last_time_changed()}`, `RSPEngine`);
+                        this.logger.info(`Received window content for time ${data.last_time_changed()}`, `RSPEngine`, this);
                         console.log(`Received window content for time ${data.last_time_changed()}`, `RSPEngine`);
                         // iterate over all the windows
                         for (const windowIt of this.windows) {
@@ -117,10 +117,10 @@ export class RSPEngine {
                                 }
                             }
                         }
-                        this.logger.info(`Starting Window Query Processing for the window ${window.getCSPARQLWindowDefinition()} with window size ${data.len()}`, `RSPEngine`);
+                        this.logger.info(`Starting Window Query Processing for the window ${window.getCSPARQLWindowDefinition()} with window size ${data.len()}`, `RSPEngine`, this);
                         console.log(`Starting Window Query Processing for the window time ${data.last_time_changed()} with window size ${data.len()}`, `RSPEngine`);
                         const bindingsStream = await this.r2r.execute(data);
-                        this.logger.info(`Ended the execution of the R2R Operator for the window ${window.getCSPARQLWindowDefinition()} with window size ${data.len()}`, `RSPEngine`);
+                        this.logger.info(`Ended the execution of the R2R Operator for the window ${window.getCSPARQLWindowDefinition()} with window size ${data.len()}`, `RSPEngine`, this);
                         bindingsStream.on('data', (binding: any) => {
                             const object_with_timestamp: binding_with_timestamp = {
                                 bindings: binding,
@@ -131,7 +131,7 @@ export class RSPEngine {
                             emitter.emit("RStream", object_with_timestamp);
                         });
                         bindingsStream.on('end', () => {
-                            this.logger.info(`Ended Comunica Binding Stream for window ${window.getCSPARQLWindowDefinition()} with window size ${data.len()}`, `RSPEngine`);
+                            this.logger.info(`Ended Comunica Binding Stream for window ${window.getCSPARQLWindowDefinition()} with window size ${data.len()}`, `RSPEngine`, this);
                         });
                         await bindingsStream;
                     }
