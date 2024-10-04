@@ -1,7 +1,8 @@
 import { EventEmitter } from "events";
 // @ts-ignore
 import { Quad } from 'n3';
-import { Logger, LogLevel, LogDestination } from "../util/Logger";
+import { Logger } from "../util/Logger";
+import { LogLevel, LogDestination } from "../util/LoggerEnum";
 import * as LOG_CONFIG from "../config/log_config.json";
 
 /* eslint-disable no-unused-vars */
@@ -185,32 +186,32 @@ export class CSPARQLWindow {
      * @returns {void} - The function does not return anything.
      */
 
-    add(event: Quad, timestamp: number) {
-        this.logger.info(`Current Time: ${this.time} Current Watermark: ${this.current_watermark}`, `CSPARQLWindow`, this);
-        this.logger.info(`adding_event`, `CSPARQLWindow`, this);
+    add(event: Quad, timestamp: number): void {
+        this.logger.info(`Current Time: ${this.time} Current Watermark: ${this.current_watermark}`, `CSPARQLWindow`);
+        this.logger.info(`adding_event`, `CSPARQLWindow`);
         console.debug(`Adding [" + ${event} + "] at time : ${timestamp} and watermark ${this.current_watermark}`);
         let t_e = timestamp;
         let to_evict = new Set<WindowInstance>();
         if (this.time > timestamp) {
-            this.logger.info(`out_of_order_event_received`, `CSPARQLWindow`, this);
+            this.logger.info(`out_of_order_event_received`, `CSPARQLWindow`);
             let event_latency = this.time - timestamp;
-            this.logger.info(`Event Latency : ${event_latency}`, `CSPARQLWindow`, this);
+            this.logger.info(`Event Latency : ${event_latency}`, `CSPARQLWindow`);
             // Out of order event handling
             console.error(`The event is late and has arrived out of order at time ${timestamp}`);
             if (t_e - this.time > this.max_delay) {
-                this.logger.info(`out_of_order_event_out_of_delay`, `CSPARQLWindow`, this);
+                this.logger.info(`out_of_order_event_out_of_delay`, `CSPARQLWindow`);
                 // Discard the event if it is too late to be considered in the window based on a simple static heuristic pre-decided
                 // when the CSPARQL Window was initialized.
                 console.error("Late element [" + event + "] with timestamp [" + timestamp + "] is out of the allowed delay [" + this.max_delay + "]");
             }
             else if (t_e - this.time <= this.max_delay) {
-                this.logger.info(`out_of_order_event_within_delay`, `CSPARQLWindow`, this);
+                this.logger.info(`out_of_order_event_within_delay`, `CSPARQLWindow`);
                 // The event is late but within the allowed delay, so we will add it to the specific window instance.
                 for (let w of this.active_windows.keys()) {
                     if (w.open <= t_e && t_e < w.close) {
                         let temp_window = this.active_windows.get(w);
                         if (temp_window) {
-                            this.logger.info(`Adding the event ${event} to the window ${w.getDefinition()} at time ${timestamp}`, `CSPARQLWindow`, this);
+                            this.logger.info(`Adding the event ${event} to the window ${w.getDefinition()} at time ${timestamp}`, `CSPARQLWindow`);
                             temp_window.add(event, t_e);
                         }
                     }
@@ -222,7 +223,7 @@ export class CSPARQLWindow {
             this.time = timestamp;
         } else if (timestamp > this.time) {
             this.time = timestamp
-            this.logger.info(`in_order_event_received`, `CSPARQLWindow`, this);
+            this.logger.info(`in_order_event_received`, `CSPARQLWindow`);
             // In order event handling
             this.scope(t_e);
             for (let w of this.active_windows.keys()) {
@@ -254,7 +255,7 @@ export class CSPARQLWindow {
      * @returns {void} - The function does not return anything.
      */
 
-    trigger_window_content(watermark: number, timestamp: number) {
+    trigger_window_content(watermark: number, timestamp: number): void {
         let max_window: WindowInstance | null = null;
         let max_time = 0;
 
@@ -272,7 +273,7 @@ export class CSPARQLWindow {
                 if (watermark >= max_time) {
                     setTimeout(() => {
                         if (watermark >= max_time + this.max_delay) {
-                            this.logger.info(`Watermark ${watermark} `, `CSPARQLWindow`, this);
+                            this.logger.info(`Watermark ${watermark} `, `CSPARQLWindow`);
                             if (max_window) {
                                 this.emitter.emit('RStream', this.active_windows.get(max_window));
                                 this.active_windows.delete(max_window);
@@ -280,12 +281,12 @@ export class CSPARQLWindow {
                             this.time = timestamp;
                         }
                         else {
-                            this.logger.info(`Window will not trigger.`, `CSPARQLWindow`, this);
+                            this.logger.info(`Window will not trigger.`, `CSPARQLWindow`);
                         }
                     }, this.max_delay);
                 }
                 else {
-                    this.logger.info(`Window ${max_window} is out of the watermark and will not trigger.`, `CSPARQLWindow`, this);
+                    this.logger.info(`Window ${max_window} is out of the watermark and will not trigger.`, `CSPARQLWindow`);
                     console.error(`Window is out of the watermark and will not trigger`);
                 }
             }
@@ -296,10 +297,10 @@ export class CSPARQLWindow {
      * @param {number} new_time - The new watermark to be set.
      * @returns {void} - The function does not return anything.
      */
-    update_watermark(new_time: number) {
+    update_watermark(new_time: number): void {
         if (new_time > this.current_watermark) {
             this.current_watermark = new_time;
-            this.logger.info(`Watermark is increasing ${this.current_watermark} and time ${this.time}`, `CSPARQLWindow`, this);
+            this.logger.info(`Watermark is increasing ${this.current_watermark} and time ${this.time}`, `CSPARQLWindow`);
         }
         else {
             console.error("Watermark is not increasing");
@@ -322,7 +323,7 @@ export class CSPARQLWindow {
      * @param {number} timestamp - The timestamp of the event to be processed.
      * @returns {boolean} - True if the report is to be computed, else false.
      */
-    compute_report(w: WindowInstance, content: QuadContainer, timestamp: number) {
+    compute_report(w: WindowInstance, content: QuadContainer, timestamp: number): boolean {
         if (this.report == ReportStrategy.OnWindowClose) {
             return w.close < timestamp;
         } else if (this.report == ReportStrategy.OnContentChange) {
