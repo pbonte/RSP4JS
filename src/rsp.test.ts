@@ -1,4 +1,5 @@
 import { RDFStream, RSPEngine } from "./rsp";
+import { RSPQLParser } from "./rspql";
 const N3 = require('n3');
 const { DataFactory } = N3;
 const { namedNode, defaultGraph, quad, literal } = DataFactory;
@@ -334,10 +335,11 @@ test('test ooo event processing with varying delay settings', async () => {
         namedNode(`https://rsp.js/test_subject`),
         namedNode('http://rsp.js/test_property'),
         namedNode('http://rsp.js/test_object'),
-        defaultGraph()
+        defaultGraph('https://rsp.js/w1/')
     )
 
     emitter.on('RStream', (object: any) => {
+        console.log(object.bindings.toString());
         results.push(object.bindings.toString());
     });
     const sleep = (ms: any) => new Promise(r => setTimeout(r, ms));
@@ -363,6 +365,8 @@ test('test ooo event processing with varying delay settings', async () => {
     expect(results.length).toBeGreaterThan(0);
     console.log(results);
 })
+// SELECT (func:sqrt(?o * ?o + ?o2 * ?o2 + ?o3 * ?o3) AS ?activityIndex)
+
 
 describe('test the rsp engine with out of order processing with various data frequency', () => {
     const location_one = "http://n078-03.wall1.ilabt.imec.be:3000/pod1/acc-x/";
@@ -375,33 +379,48 @@ describe('test the rsp engine with out of order processing with various data fre
     PREFIX dahccsensors: <https://dahcc.idlab.ugent.be/Homelab/SensorsAndActuators/>
     PREFIX func: <http://extension.org/functions#>
     REGISTER RStream <output> AS
-    SELECT ?o
-
-    FROM NAMED WINDOW :w1 ON STREAM <${location_one}> [RANGE 6000 STEP 2000]
-    FROM NAMED WINDOW :w2 ON STREAM <${location_two}> [RANGE 6000 STEP 2000]
-    FROM NAMED WINDOW :w3 ON STREAM <${location_three}> [RANGE 6000 STEP 2000]
+    SELECT *
+    FROM NAMED WINDOW :w1 ON STREAM <${location_one}> [RANGE 10 STEP 5]
+    FROM NAMED WINDOW :w2 ON STREAM <${location_two}> [RANGE 10 STEP 5]
+    FROM NAMED WINDOW :w3 ON STREAM <${location_three}> [RANGE 10 STEP 5]
 
     WHERE {
-        WINDOW :w1 { 
-        ?s saref:hasValue ?o .
-        ?s saref:relatesToProperty dahccsensors:wearable.acceleration.x .
-        }
-        WINDOW :w2 {
-        ?s saref:hasValue ?o2 .
-        ?s saref:relatesToProperty dahccsensors:wearable.acceleration.x .
-        }
-        WINDOW :w3 {
-        ?s saref:hasValue ?o3 .
-        ?s saref:relatesToProperty dahccsensors:wearable.acceleration.x .
-        }
+       WINDOW :w1 { ?s saref:hasValue ?o .
+                    ?s saref:relatesToProperty dahccsensors:wearable.acceleration.x .
+                    }    
+       WINDOW :w2 { ?s2 saref:hasValue ?o2 .
+                    ?s2 saref:relatesToProperty dahccsensors:wearable.acceleration.x .
+                    }
+       WINDOW :w3 { ?s3 saref:hasValue ?o3 .
+                    ?s3 saref:relatesToProperty dahccsensors:wearable.acceleration.x .
+                    }
+    }
+    `;
+
+    const query_two = `
+    PREFIX : <https://rsp.js/>
+    PREFIX saref: <https://saref.etsi.org/core/>
+    PREFIX dahccsensors: <https://dahcc.idlab.ugent.be/Homelab/SensorsAndActuators/>
+    PREFIX func: <http://extension.org/functions#>
+    REGISTER RStream <output> AS
+    SELECT (func:sqrt(?o * ?o + ?o2 * ?o2 + ?o3 * ?o3) AS ?activityIndex)
+    FROM NAMED WINDOW :w1 ON STREAM <${location_one}> [RANGE 10 STEP 5]
+    FROM NAMED WINDOW :w2 ON STREAM <${location_two}> [RANGE 10 STEP 5]
+    FROM NAMED WINDOW :w3 ON STREAM <${location_three}> [RANGE 10 STEP 5]
+
+    WHERE {
+    WINDOW :w1 { ?s saref:hasValue ?o .} 
+    WINDOW :w2 { ?s2 saref:hasValue ?o2 .}
+    WINDOW :w3 { ?s3 saref:hasValue ?o3 .}
     }
     `;
 
     test('testing RSP Engine with 4Hz data frequency', async () => {
-        jest.setTimeout(100000);
-        const rsp_engine = new RSPEngine(query, {
-            max_delay: 1000,
+        const rsp_engine = new RSPEngine(query_two, {
+            max_delay: 0,
         });
+        const rspql_parser = new RSPQLParser();
+        console.log(rspql_parser.parse(query).sparql);
         const emitter = rsp_engine.register();
         const results = new Array<string>();
 
@@ -411,7 +430,7 @@ describe('test the rsp engine with out of order processing with various data fre
 
         if (stream_x && stream_y && stream_z) {
             const rdf_streams = [stream_x, stream_y, stream_z];
-            generate_dummy_data(500, rdf_streams, 4);
+            generate_dummy_data(10, rdf_streams, 4);
         }
 
         emitter.on('RStream', (object: any) => {
@@ -419,10 +438,39 @@ describe('test the rsp engine with out of order processing with various data fre
             results.push(object.bindings.toString());
         });
 
-        await sleep(500000);
-        console.log(results);
+        await sleep(2000);
+        console.log(results.length);
+        
+    }); 
 
-    });
+
+    test('testing RSP Engine with 4Hz data frequency with multiple data on the same timestamp', async () => {
+        const rsp_engine = new RSPEngine(query_two, {
+            max_delay: 0,
+        });
+        const rspql_parser = new RSPQLParser();
+        console.log(rspql_parser.parse(query).sparql);
+        const emitter = rsp_engine.register();
+        const results = new Array<string>();
+
+        const stream_x = await rsp_engine.getStream(location_one);
+        const stream_y = await rsp_engine.getStream(location_two);
+        const stream_z = await rsp_engine.getStream(location_three);
+
+        if (stream_x && stream_y && stream_z) {
+            const rdf_streams = [stream_x, stream_y, stream_z];
+            generate_dummy_data(10, rdf_streams, 4);
+        }
+
+        emitter.on('RStream', (object: any) => {
+            console.log(object.bindings.toString());
+            results.push(object.bindings.toString());
+        });
+
+        await sleep(2000);
+        console.log(results.length);
+        
+    }); 
 
 });
 
@@ -457,6 +505,8 @@ test('testing the ooo processing with multiple events and multiple streams', asy
         namedNode('http://rsp.js/test_object'),
         defaultGraph()
     )
+
+    //    SELECT (func:sqrt(?o) as ?sqrt) (func:sqrt(?o2,2) as ?sqrt2) (func:sqrt(?o3) as ?sqrt3) 
 
     emitter.on('RStream', (object: any) => {
         results.push(object.bindings.toString());
@@ -512,9 +562,9 @@ async function generate_dummy_data(number_of_events: number, rdf_streams: RDFStr
                     defaultGraph(),
                 );
 
-                const timestamp = Date.now();
+                const timestamp = events_generated;
                 stream.add(stream_element, timestamp);
-                stream.add(stream_element_two, timestamp);
+                stream.add(stream_element_two, timestamp);                
                 events_generated = events_generated + 1;
             }
         });

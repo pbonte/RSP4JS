@@ -112,9 +112,12 @@ export class RSPEngine {
                             // filter out the current triggering one
                             if (windowIt != window) {
                                 const currentWindowData = windowIt.getContent(data.last_time_changed());
+                                this.logger.info(`Window Content ${data.len()} for time ${data.last_time_changed()} for window ${windowIt.getCSPARQLWindowDefinition()}`, `RSPEngine`);
                                 if (currentWindowData) {
                                     // add the content of the other windows to the quad container
+                                    console.log(`Data length before adding`,data.len());            
                                     currentWindowData.elements.forEach((q) => data.add(q, data.last_time_changed()));
+                                    console.log(`Data length after adding`,data.len());
                                 }
                             }
                         }

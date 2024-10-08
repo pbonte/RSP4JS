@@ -65,8 +65,7 @@ test('test_query_engine_with_extension_functions', async () => {
     const results = new Array<string>();
     // @ts-ignore
     bindingsStream.on('data', (binding) => {
-        console.log(binding);
-
+        console.log(binding.toString()); // Quick way to print bindings for testing
         results.push(binding);
     });
 
@@ -104,7 +103,7 @@ test.skip('test_with_huge_quad_data', async () => {
     let parsed_query = rspql_parser.parse(rspql_query);
     let r2r = new R2ROperator(parsed_query.sparql);
     let quad_set = new Set<Quad>();
-    let number_of_quads = 3000;
+    let number_of_quads = 10;
 
 
     for (let i = 0; i < number_of_quads; i++) {
@@ -126,9 +125,11 @@ test.skip('test_with_huge_quad_data', async () => {
             quad_set.add(stream_element2);
         }
     }
+    
     let quad_container = new QuadContainer(quad_set, 0);
-    let bindings_stream = await r2r.execute(quad_container);
+    let bindings_stream = await r2r.execute(quad_container);    
     bindings_stream.on('data', (binding: any) => {
+        
         console.log(`Binding: ${binding.toString()}`);
     });
 

@@ -181,7 +181,7 @@ export class CSPARQLWindow {
 
     /**
      * Add the event to the window at the given timestamp and checks if the event is late or not.
-     * @param {Quad} e - The event to be added to the window.
+     * @param {Quad} event - The event to be added to the window.
      * @param {number} timestamp - The timestamp of the event.
      * @returns {void} - The function does not return anything.
      */

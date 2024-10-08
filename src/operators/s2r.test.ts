@@ -396,6 +396,67 @@ describe(`CSPARQLWindow computing window instances`, () => {
 
 })
 
+
+describe('Quad Container Test Suite', () => {
+    test('add_to_quad_container', () => {
+        const quad1 = quad(
+            namedNode('https://rsp.js/test_subject_0'),
+            namedNode('http://rsp.js/test_property'),
+            namedNode('http://rsp.js/test_object'),
+            defaultGraph(),
+        );
+        const quad2 = quad(
+            namedNode('https://rsp.js/test_subject_1'),
+            namedNode('http://rsp.js/test_property'),
+            namedNode('http://rsp.js/test_object'),
+            defaultGraph(),
+        );
+        const quad_container = new QuadContainer(new Set<Quad>(), 0);
+        quad_container.add(quad1, 0);
+        quad_container.add(quad2, 1);
+        expect(quad_container.len()).toBe(2);
+    });
+
+    test('add_to_container_same_time', () => {
+        const quad1 = quad(
+            namedNode('https://rsp.js/test_subject_0'),
+            namedNode('http://rsp.js/test_property'),
+            namedNode('http://rsp.js/test_object'),
+            defaultGraph(),
+        );
+        const quad2 = quad(
+            namedNode('https://rsp.js/test_subject_1'),
+            namedNode('http://rsp.js/test_property'),
+            namedNode('http://rsp.js/test_object'),
+            defaultGraph(),
+        );
+        const quad3 = quad(
+            namedNode('https://rsp.js/test_subject_0'),
+            namedNode('http://rsp.js/test_property2'),
+            namedNode('http://rsp.js/test_object2'),
+        )
+        const quad4 = quad(
+            namedNode('https://rsp.js/test_subject_0'),
+            namedNode('http://rsp.js/test_property3'),
+            namedNode('http://rsp.js/test_object3'),
+        );
+        const quad_container = new QuadContainer(new Set<Quad>(), 0);
+        quad_container.add(quad1, 0);
+        quad_container.add(quad2, 0);
+        quad_container.add(quad3, 0);
+        quad_container.add(quad4, 0);
+        expect(quad_container.len()).toBe(4);
+        const active_windows = new Map<WindowInstance, QuadContainer>();
+        const window1 = new WindowInstance(0, 10);
+        active_windows.set(window1, quad_container);
+        const window_content = active_windows.get(window1);
+        expect(window_content).toBeDefined();
+        if (window_content) {
+            expect(window_content.len()).toBe(4);
+        }
+    });
+});
+
 /**
  * Check if the set contains the window instance.
  * @param {Set<WindowInstance>} set - The set of window instances.
