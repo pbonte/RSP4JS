@@ -221,7 +221,7 @@ export class CSPARQLWindow {
                 }
             }
             this.time = timestamp;
-        } else if (timestamp > this.time) {
+        } else if (timestamp >= this.time) {
             this.time = timestamp
             this.logger.info(`in_order_event_received`, `CSPARQLWindow`);
             // In order event handling

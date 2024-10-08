@@ -440,9 +440,7 @@ describe('test the rsp engine with out of order processing with various data fre
 
         await sleep(2000);
         console.log(results.length);
-        
-    }); 
-
+    });
 
     test('testing RSP Engine with 4Hz data frequency with multiple data on the same timestamp', async () => {
         const rsp_engine = new RSPEngine(query_two, {
@@ -469,11 +467,107 @@ describe('test the rsp engine with out of order processing with various data fre
 
         await sleep(2000);
         console.log(results.length);
+    });
+
+    test('testing the RSP Engine with 4Hz data frequency and same subject with different predicate object pairs', async () => {
+        jest.setTimeout(100000);
+        const query_activity_index = `
+        PREFIX : <https://rsp.js/>
+        PREFIX saref: <https://saref.etsi.org/core/>
+        PREFIX dahccsensors: <https://dahcc.idlab.ugent.be/Homelab/SensorsAndActuators/>
+        PREFIX func: <http://extension.org/functions#>
+        REGISTER RStream <output> AS
+        SELECT (func:sqrt(?o * ?o + ?o2 * ?o2 + ?o3 * ?o3) AS ?activityIndex)
+        FROM NAMED WINDOW :w1 ON STREAM <${location_one}> [RANGE 10 STEP 2]
+        FROM NAMED WINDOW :w2 ON STREAM <${location_two}> [RANGE 10 STEP 2]
+        FROM NAMED WINDOW :w3 ON STREAM <${location_three}> [RANGE 10 STEP 2]
+    
+        WHERE {
+        WINDOW :w1 { ?s saref:hasValue ?o .}
+        WINDOW :w2 { ?s2 saref:hasValue ?o2 .}
+        WINDOW :w3 { ?s3 saref:hasValue ?o3 .}
+        }
+        `;
+    
+        const rsp_engine = new RSPEngine(query_activity_index, { max_delay: 0 });
+        const emitter = rsp_engine.register();
+    
+        const stream_x = await rsp_engine.getStream(location_one);
+        const stream_y = await rsp_engine.getStream(location_two);
+        const stream_z = await rsp_engine.getStream(location_three);
+    
+        const results: string[] = [];
         
-    }); 
+        // Promise to listen for stream results
+        const resultPromise = new Promise<void>((resolve) => {
+            emitter.on('RStream', (object: any) => {
+                console.log(object.bindings.toString());
+                results.push(object.bindings.toString());
+    
+                // Resolve the promise when sufficient results are collected
+                if (results.length >= 0) {
+                    resolve(); // Adjust number based on expected results
+                }
+            });
+        });
+    
+        if (stream_x && stream_y && stream_z) {
+            // Add quads to the streams
+            const event_one = quad(
+                namedNode('https://rsp.js/test_subject_1'),
+                namedNode('https://saref.etsi.org/core/hasValue'),
+                literal('1', namedNode('http://www.w3.org/2001/XMLSchema#integer')),
+                defaultGraph(),
+            );
+            const event_two = quad(
+                namedNode('https://rsp.js/test_subject_1'),
+                namedNode('https://saref.etsi.org/core/relatesToProperty'),
+                namedNode('https://dahcc.idlab.ugent.be/Homelab/SensorsAndActuators/wearable.acceleration.x'),
+                defaultGraph(),
+            );
+    
+            // Add events to streams at different timestamps
+            stream_x.add(event_one, 0);
+            stream_x.add(event_two, 0);
+            stream_y.add(event_one, 0);
+            stream_y.add(event_two, 0);
+            stream_z.add(event_one, 0);
+            stream_z.add(event_two, 0);
+    
+            const event_three = quad(
+                namedNode('https://rsp.js/test_subject_2'),
+                namedNode('https://saref.etsi.org/core/hasValue'),
+                literal('2', namedNode('http://www.w3.org/2001/XMLSchema#integer')),
+                defaultGraph(),
+            );
+    
+            const event_four = quad(
+                namedNode('https://rsp.js/test_subject_2'),
+                namedNode('https://saref.etsi.org/core/relatesToProperty'),
+                namedNode('https://dahcc.idlab.ugent.be/Homelab/SensorsAndActuators/wearable.acceleration.x'),
+                defaultGraph(),
+            );
+    
+            stream_x.add(event_three, 5);
+            stream_x.add(event_four, 5);
+            stream_y.add(event_three, 5);
+            stream_y.add(event_four, 5);
+            stream_z.add(event_three, 5);
+            stream_z.add(event_four, 5);
+    
+            stream_x.add(event_one, 10);
+            stream_x.add(event_two, 10);
+            stream_y.add(event_one, 10);
+            stream_y.add(event_two, 10);
+            stream_z.add(event_one, 10);
+            stream_z.add(event_two, 10);
+        }
+    
+        // Await until the results are gathered
+        await resultPromise;
+    });
 
 });
-
 
 test('testing the ooo processing with multiple events and multiple streams', async () => {
     const query = `
@@ -564,7 +658,7 @@ async function generate_dummy_data(number_of_events: number, rdf_streams: RDFStr
 
                 const timestamp = events_generated;
                 stream.add(stream_element, timestamp);
-                stream.add(stream_element_two, timestamp);                
+                stream.add(stream_element_two, timestamp);
                 events_generated = events_generated + 1;
             }
         });

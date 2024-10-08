@@ -101,29 +101,29 @@ export class RSPEngine {
     register() {
         const EventEmitter = require('events').EventEmitter;
         const emitter = new EventEmitter();
-        this.windows.forEach((window) => {
+        this.windows.forEach((window) => {            
             window.subscribe("RStream", async (data: QuadContainer) => {
                 if (data) {
                     if (data.len() > 0) {
                         this.logger.info(`Received window content for time ${data.last_time_changed()}`, `RSPEngine`);
-                        console.log(`Received window content for time ${data.last_time_changed()}`, `RSPEngine`);
                         // iterate over all the windows
                         for (const windowIt of this.windows) {
                             // filter out the current triggering one
                             if (windowIt != window) {
-                                const currentWindowData = windowIt.getContent(data.last_time_changed());
+                                const currentWindowData = windowIt.getContent(data.last_time_changed());                                
                                 this.logger.info(`Window Content ${data.len()} for time ${data.last_time_changed()} for window ${windowIt.getCSPARQLWindowDefinition()}`, `RSPEngine`);
                                 if (currentWindowData) {
                                     // add the content of the other windows to the quad container
-                                    console.log(`Data length before adding`,data.len());            
+                                    this.logger.info(`Data length before adding ${data.len()}`, `RSPEngine`);            
                                     currentWindowData.elements.forEach((q) => data.add(q, data.last_time_changed()));
-                                    console.log(`Data length after adding`,data.len());
+                                    this.logger.info(`Data length after adding ${data.len()}`, `RSPEngine`);            
                                 }
                             }
                         }
                         this.logger.info(`Starting Window Query Processing for the window ${window.getCSPARQLWindowDefinition()} with window size ${data.len()}`, `RSPEngine`);
-                        console.log(`Starting Window Query Processing for the window time ${data.last_time_changed()} with window size ${data.len()}`, `RSPEngine`);
                         const bindingsStream = await this.r2r.execute(data);
+                        console.log(data.elements);
+                        
                         this.logger.info(`Ended the execution of the R2R Operator for the window ${window.getCSPARQLWindowDefinition()} with window size ${data.len()}`, `RSPEngine`);
                         bindingsStream.on('data', (binding: any) => {
                             const object_with_timestamp: binding_with_timestamp = {
