@@ -121,10 +121,11 @@ export class RSPEngine {
                             }
                         }
                         this.logger.info(`Starting Window Query Processing for the window ${window.getCSPARQLWindowDefinition()} with window size ${data.len()}`, `RSPEngine`);
+                        let time_start_query_processing = new Date().getTime();
                         const bindingsStream = await this.r2r.execute(data);
-                        console.log(data.elements);
-                        
+                        let time_end_query_processing = new Date().getTime();
                         this.logger.info(`Ended the execution of the R2R Operator for the window ${window.getCSPARQLWindowDefinition()} with window size ${data.len()}`, `RSPEngine`);
+                        this.logger.info(`Time taken for query processing for window ${window.getCSPARQLWindowDefinition()} is ${time_end_query_processing - time_start_query_processing} ms with window size ${data.len()}`, `RSPEngine`);
                         bindingsStream.on('data', (binding: any) => {
                             const object_with_timestamp: binding_with_timestamp = {
                                 bindings: binding,

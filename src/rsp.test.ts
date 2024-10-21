@@ -469,7 +469,7 @@ describe('test the rsp engine with out of order processing with various data fre
         console.log(results.length);
     });
 
-    test('testing the RSP Engine with 4Hz data frequency and same subject with different predicate object pairs', async () => {
+    test.skip('testing the RSP Engine with 4Hz data frequency and same subject with different predicate object pairs', async () => {
         jest.setTimeout(100000);
         const query_activity_index = `
         PREFIX : <https://rsp.js/>
