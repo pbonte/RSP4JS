@@ -187,8 +187,7 @@ export class CSPARQLWindow {
      */
 
     add(event: Quad, timestamp: number): void {
-        this.logger.info(`Current Time: ${this.time} Current Watermark: ${this.current_watermark}`, `CSPARQLWindow`);
-        this.logger.info(`adding_event`, `CSPARQLWindow`);
+        this.logger.info(`adding_event_to_the_window`, `CSPARQLWindow`);
         console.debug(`Adding [" + ${event} + "] at time : ${timestamp} and watermark ${this.current_watermark}`);
         let t_e = timestamp;
         let to_evict = new Set<WindowInstance>();
@@ -211,7 +210,8 @@ export class CSPARQLWindow {
                     if (w.open <= t_e && t_e < w.close) {
                         let temp_window = this.active_windows.get(w);
                         if (temp_window) {
-                            this.logger.info(`Adding the event ${event} to the window ${w.getDefinition()} at time ${timestamp}`, `CSPARQLWindow`);
+                            // TODO: log this for when the event is added to the window and for the latency calculation
+                            this.logger.info(`adding_out_of_order_event ${event.subject.value} to the window ${this.name} with bounds ${w.getDefinition()} at time ${timestamp}`, `CSPARQLWindow`);
                             temp_window.add(event, t_e);
                         }
                     }
@@ -232,6 +232,7 @@ export class CSPARQLWindow {
                     console.debug(`Adding the event ${event} to the window ${w.getDefinition()} at time ${timestamp}`);
                     let window_to_add = this.active_windows.get(w);
                     if (window_to_add) {
+                        this.logger.info(`adding_in_order_event ${event.subject.value} to the window ${this.name} with bounds ${w.getDefinition()} at time ${timestamp}`, `CSPARQLWindow`);
                         window_to_add.add(event, t_e);
                     }
                 }
