@@ -277,6 +277,7 @@ export class CSPARQLWindow {
                             this.logger.info(`Watermark ${watermark} `, `CSPARQLWindow`);
                             if (max_window) {
                                 this.emitter.emit('RStream', this.active_windows.get(max_window));
+                                this.logger.info(`Window with bounds [${max_window.open}${max_window.close}) ${max_window.getDefinition()} is triggered for the window name${this.name}`, `CSPARQLWindow`);
                                 this.active_windows.delete(max_window);
                             }
                             this.time = timestamp;
