@@ -49,7 +49,9 @@ test('rsp_consumer_test', async () => {
         WINDOW :w1 { ?s ?p ?o}
     }`;
 
-    const rspEngine = new RSPEngine(query);
+    const rspEngine = new RSPEngine(query, {
+        log_enabled: false,
+    });
     const stream = rspEngine.getStream("https://rsp.js/stream1");
     const emitter = rspEngine.register();
     const results = new Array<string>();
