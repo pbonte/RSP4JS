@@ -78,7 +78,7 @@ export class RSPEngine {
         this.windows = new Array<CSPARQLWindow>();
         if (opts) {
             this.max_delay = opts.max_delay ? opts.max_delay : 0;
-            this.log_enabled = opts.log_enabled ? opts.log_enabled : false;
+            this.log_enabled = opts.log_enabled ? opts.log_enabled : true;
         }
         else {
             this.max_delay = 0;
