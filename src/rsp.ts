@@ -62,7 +62,7 @@ export class RSPEngine {
     public max_delay: number;
     public log_enabled!: boolean;
     private r2r: R2ROperator;
-    private logger: Logger;
+    public logger: Logger;
 
     /**
      * Constructor for the RSPEngine class.
@@ -73,23 +73,16 @@ export class RSPEngine {
      */
     constructor(query: string, opts?: {
         max_delay?: number
-        log_enabled?: boolean
     }) {
         this.windows = new Array<CSPARQLWindow>();
         if (opts) {
             this.max_delay = opts.max_delay ? opts.max_delay : 0;
-            this.log_enabled = opts.log_enabled ? opts.log_enabled : true;
         }
         else {
             this.max_delay = 0;
         }
         const logLevel: LogLevel = LogLevel[LOG_CONFIG.log_level as keyof typeof LogLevel];
-        if (this.log_enabled) {
-            this.logger = new Logger(logLevel, LOG_CONFIG.classes_to_log, LOG_CONFIG.destination as unknown as LogDestination);      
-        }
-        else {
-            this.logger = new Logger(logLevel, LOG_CONFIG.classes_to_log, 'CONSOLE');
-        }
+        this.logger = new Logger(logLevel, LOG_CONFIG.classes_to_log, LOG_CONFIG.destination as unknown as LogDestination);      
         this.streams = new Map<string, RDFStream>();
         const parser = new RSPQLParser();
         const parsed_query = parser.parse(query);
