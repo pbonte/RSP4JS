@@ -260,6 +260,7 @@ export class CSPARQLWindow {
         let max_window: WindowInstance | null = null;
         let max_time = 0;
 
+        // Identify the window to trigger
         this.active_windows.forEach((value: QuadContainer, window: WindowInstance) => {
             if (this.compute_report(window, value, watermark)) {
                 if (window.close > max_time) {
@@ -270,30 +271,41 @@ export class CSPARQLWindow {
         });
 
         if (max_window) {
-            if (this.tick == Tick.TimeDriven) {
-                if (watermark >= max_time) {
-                    setTimeout(() => {
+            if (this.tick == Tick.TimeDriven && watermark >= max_time) {
+                setTimeout(() => {
+                    if (max_window) {
                         if (watermark >= max_time + this.max_delay) {
                             this.logger.info(`Watermark ${watermark} `, `CSPARQLWindow`);
-                            if (max_window) {
-                                this.emitter.emit('RStream', this.active_windows.get(max_window));
-                                this.logger.info(`Window with bounds [${max_window.open}${max_window.close}) ${max_window.getDefinition()} is triggered for the window name${this.name}`, `CSPARQLWindow`);
-                                this.active_windows.delete(max_window);
+                            if (max_window) { }
+                            const windowToDelete = this.findWindowInstance(max_window);
+                            if (windowToDelete) {
+                                this.emitter.emit('RStream', this.active_windows.get(windowToDelete));
+                                this.logger.info(`Window with bounds [${windowToDelete.open},${windowToDelete.close}) ${windowToDelete.getDefinition()} is triggered for the window name ${this.name}`, `CSPARQLWindow`);
+                                this.active_windows.delete(windowToDelete);
                             }
                             this.time = timestamp;
-                        }
-                        else {
+                        } else {
                             this.logger.info(`Window will not trigger.`, `CSPARQLWindow`);
                         }
-                    }, this.max_delay);
-                }
-                else {
-                    this.logger.info(`Window ${max_window} is out of the watermark and will not trigger.`, `CSPARQLWindow`);
-                    console.error(`Window is out of the watermark and will not trigger`);
-                }
+                    }
+                }, this.max_delay);
+            } else {
+                this.logger.info(`Window ${max_window} is out of the watermark and will not trigger.`, `CSPARQLWindow`);
+                console.error(`Window is out of the watermark and will not trigger`);
             }
         }
     }
+
+    // Helper to find the matching instance in the Map
+    private findWindowInstance(target: WindowInstance): WindowInstance | undefined {
+        for (const window of this.active_windows.keys()) {
+            if (window.is_same(target)) {
+                return window;
+            }
+        }
+        return undefined;
+    }
+
     /**
      * Updating the watermark. 
      * @param {number} new_time - The new watermark to be set.
