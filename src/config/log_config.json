@@ -2,7 +2,9 @@
     "log_level": "INFO",
     "classes_to_log": [
         "RDFStream",
-        "RSPEngine"
+        "RSPEngine",
+        "CSPARQLWindow",
+        "R2ROperator"
     ],
     "destination": "FILE"
 }

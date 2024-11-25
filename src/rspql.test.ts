@@ -1,14 +1,14 @@
 import {RSPQLParser} from "./rspql";
 
 
-let simple_query = `PREFIX : <https://rsp.js/>
+const simple_query = `PREFIX : <https://rsp.js/>
     REGISTER RStream <output> AS
     SELECT AVG(?v) as ?avgTemp
     FROM NAMED WINDOW :w1 ON STREAM :stream1 [RANGE 10 STEP 2]
     WHERE{
         WINDOW :w1 { ?sensor :value ?v ; :measurement: ?m }
     }`;
-let advanced_query = `PREFIX : <https://rsp.js/>
+const advanced_query = `PREFIX : <https://rsp.js/>
     REGISTER RStream <output> AS
     SELECT AVG(?v) as ?avgTemp
     FROM NAMED WINDOW :w1 ON STREAM :stream1 [RANGE 10 STEP 2]
@@ -21,19 +21,19 @@ let advanced_query = `PREFIX : <https://rsp.js/>
     }`;
 
 test('test_r2s', async () => {
-    let parser = new RSPQLParser();
-    let parsed_query = parser.parse(simple_query);
+    const parser = new RSPQLParser();
+    const parsed_query = parser.parse(simple_query);
 
-    let expected_r2s = {operator: "RStream", name: "output"};
+    const expected_r2s = {operator: "RStream", name: "output"};
     expect(parsed_query.r2s).toStrictEqual(expected_r2s);
 
 });
 
 test('test_single_window', async () => {
-    let parser = new RSPQLParser();
-    let parsed_query = parser.parse(simple_query);
+    const parser = new RSPQLParser();
+    const parsed_query = parser.parse(simple_query);
 
-    let expected_windows = {window_name: "https://rsp.js/w1",
+    const expected_windows = {window_name: "https://rsp.js/w1",
         stream_name: "https://rsp.js/stream1",
         width: 10,
         slide: 2};
@@ -41,10 +41,10 @@ test('test_single_window', async () => {
 });
 
 test('test_multiple_window', async () => {
-    let parser = new RSPQLParser();
-    let parsed_query = parser.parse(advanced_query);
+    const parser = new RSPQLParser();
+    const parsed_query = parser.parse(advanced_query);
 
-    let expected_windows = [{window_name: "https://rsp.js/w1",
+    const expected_windows = [{window_name: "https://rsp.js/w1",
         stream_name: "https://rsp.js/stream1",
         width: 10,
         slide: 2},
@@ -56,10 +56,10 @@ test('test_multiple_window', async () => {
     expect(parsed_query.s2r).toStrictEqual(expected_windows);
 });
 test('test_simple_sparql_extract', async () => {
-    let parser = new RSPQLParser();
-    let parsed_query = parser.parse(simple_query);
+    const parser = new RSPQLParser();
+    const parsed_query = parser.parse(simple_query);
 
-    let expected_sparql =
+    const expected_sparql =
         `PREFIX : <https://rsp.js/>
 SELECT AVG(?v) as ?avgTemp
 WHERE{
@@ -69,10 +69,10 @@ GRAPH :w1 { ?sensor :value ?v ; :measurement: ?m }
 });
 
 test('test_sparql_extract_multiple_windows', async () => {
-    let parser = new RSPQLParser();
-    let parsed_query = parser.parse(advanced_query);
+    const parser = new RSPQLParser();
+    const parsed_query = parser.parse(advanced_query);
 
-    let expected_sparql =
+    const expected_sparql =
         `PREFIX : <https://rsp.js/>
 SELECT AVG(?v) as ?avgTemp
 
