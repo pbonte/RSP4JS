@@ -273,7 +273,7 @@ export class CSPARQLWindow {
         if (max_window) {
             if (this.tick == Tick.TimeDriven && watermark >= max_time) {
                 setTimeout(() => {
-                    if (max_window) {
+                    if (max_window && max_window.has_triggered === false) {
                         if (watermark >= max_time + this.max_delay) {
                             this.logger.info(`Watermark ${watermark} `, `CSPARQLWindow`);
                             if (max_window) { }
@@ -281,6 +281,7 @@ export class CSPARQLWindow {
                             if (windowToDelete) {
                                 this.emitter.emit('RStream', this.active_windows.get(windowToDelete));
                                 this.logger.info(`Window with bounds [${windowToDelete.open},${windowToDelete.close}) ${windowToDelete.getDefinition()} is triggered for the window name ${this.name}`, `CSPARQLWindow`);
+                                max_window.set_triggered();
                                 this.active_windows.delete(windowToDelete);
                             }
                             this.time = timestamp;
